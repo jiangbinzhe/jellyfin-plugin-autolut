@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.6.0",
+        "changelog": "Add two independent opt-in modes: assume missing color tags are BT.709 for 8-bit video, and allow SDR input up to 3840x2160. Defaults remain off; HDR/Dolby Vision/10-bit and larger inputs stay excluded. NAS 4K real-time performance is not yet validated.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.6/AutoLut_0.1.6.0-linux-x64.zip",
+        "checksum": "ca3ee0f67e4298a12c0973d0b1316380",
+        "timestamp": "2026-09-28T08:57:39.694896+00:00"
+      },
+      {
         "version": "0.1.5.0",
         "changelog": "Fix web-player LUT controls in Jellyfin Mobile: match the authenticated client session and honor device-scoped opt-out. Show recoverable state-query errors. Reload the app web view after updating; iOS playback acceptance is pending.",
         "targetAbi": "12.1.0.0",
