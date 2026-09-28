@@ -1,12 +1,14 @@
 # Jellyfin Auto LUT — Preview
 
-为选定用户、设备和媒体自动生成调色 LUT，并接入 Jellyfin 的服务端转码流程。当前为 **0.1.2 预发布版**，默认关闭。
+为选定用户、设备和媒体自动生成调色 LUT，并接入 Jellyfin 的服务端转码流程。当前为 **0.1.3 预发布版**，默认关闭。
 
 > 当前范围：Jellyfin 12.1、Linux x64、SDR BT.709、8-bit、最大 1080p；CPU LUT + QSV 编码。最终插件在实际 NAS 上的 QSV/HLS 实播尚待验收，不适合直接全库启用。
 
 ## 功能
 
-- 用户和媒体白名单必须同时匹配，设备白名单可进一步限制。
+- 必须匹配用户白名单，并匹配所选媒体库或单个媒体 ID；设备白名单可进一步限制。
+- 0.1.3 设置页按名称勾选媒体库，覆盖库内电影和剧集。已有单媒体配置继续生效。
+- 0.1.3 同服务器托管的网页播放器自动显示 LUT 开关，切换后重播以应用设置，详见 [网页开关与媒体库选择](docs/WEB_CONTROLS.md)。
 - 自动模式抽取请求起点（未提供时用该用户保存进度）的一帧，最长边缩放到 640，分析中央区域肤色并生成 33³ LUT；也支持固定 `.cube` 文件。
 - 无可用肤色或准备失败时保留普通播放。
 - 生成成功后通过 PlaybackInfo 强制视频转码；每次播放会话冻结 LUT，避免不同用户或不同调色结果串用缓存。
@@ -14,19 +16,19 @@
 
 ## 移动客户端
 
-0.1.2 针对 Android 手机/平板 2.7.3 内置播放器，以及 Swiftfin 1.6.1 的 Swiftfin 和 Native 模式补充服务端协商、独立文本字幕及播放结束额度回收。详情与实机验收见 [移动端兼容性](docs/MOBILE_COMPATIBILITY.md)。此预发布版尚未完成手机实播或 NAS QSV 验收；播放器内仍没有 LUT 按钮。
+0.1.2 针对 Android 手机/平板 2.7.3 内置播放器，以及 Swiftfin 1.6.1 的 Swiftfin 和 Native 模式补充服务端协商、独立文本字幕及播放结束额度回收。详情与实机验收见 [移动端兼容性](docs/MOBILE_COMPATIBILITY.md)。此预发布版尚未完成手机实播或 NAS QSV 验收；Android/Swiftfin 原生播放器内仍没有 LUT 按钮；0.1.3 新增的是网页播放器按钮。
 
 ## 安装
 
-0.1.2 可在 Jellyfin 管理面板 → 插件 → 仓库中添加：
+0.1.3 可在 Jellyfin 管理面板 → 插件 → 仓库中添加：
 
 ```text
-https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.2/manifest.json
+https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.3/manifest.json
 ```
 
 刷新插件目录，安装 **Auto LUT (Preview)**，然后重启 Jellyfin。该地址固定到此次预发布，便于手动选择升级；不是自动跟随最新版本的稳定仓库。
 
-在插件设置页填写一个测试用户 ID 和一部测试媒体 ID，保存并启用。ID 是 Jellyfin 的 ID，不是显示名称。固定 LUT 路径使用容器内绝对路径。
+填写测试用户 ID，然后勾选媒体库或填写单个媒体 ID。选择媒体库时，单个媒体 ID 可留空。用户 ID 是 Jellyfin 内部 ID，不是登录用户名。固定 LUT 路径使用容器内绝对路径。
 
 先选一部无字幕的 720p/1080p SDR 测试视频。自动模式在黑色片头或没有肤色时会跳过，可从有人物的时间点开始播放。
 
@@ -49,7 +51,7 @@ VAAPI 硬解 → VAAPI 缩放 → 下载帧 → RGB 浮点 CPU lut3d
 | 会话额度 | 最多 8 个未关闭会话；正常播放结束后释放，异常退出或仅停止编码的切换可能继续占用 |
 | 数据保留 | 抽帧原始数据用后删除；LUT 保存在 `/cache/autolut`，旧运行目录需在无相关播放时清理 |
 
-当前 GPU/Vulkan 映射测试出现过绿屏和 10-bit 损坏，因此此版本没有全 GPU LUT 选项。关闭插件只影响新请求；已有会话保持冻结 LUT，结束后重新播放即可恢复。FFmpeg 实际编码失败时不自动重试，请关闭插件重新播放并检查日志。
+当前 GPU/Vulkan 映射测试出现过绿屏和 10-bit 损坏，因此此版本没有全 GPU LUT 选项。后台关闭插件只影响新请求；已有会话保持冻结 LUT。0.1.3 网页按钮通过重新建立播放会话切换效果，会短暂缓冲；它不会修改管理员设置或绕过白名单。FFmpeg 实际编码失败时不自动重试，请关闭插件重新播放并检查日志。
 
 ## 验证状态
 
@@ -57,11 +59,12 @@ VAAPI 硬解 → VAAPI 缩放 → 下载帧 → RGB 浮点 CPU lut3d
 - 独立官方 Jellyfin 12.1：插件加载、配置页面和实际 PlaybackInfo 白名单/强制转码流程通过。
 - 0.1.1：47 项检查通过；通过 Jellyfin 正式仓库安装后端完成下载校验、安装、重启加载及自动分析验证，详见 [验证记录](docs/VALIDATION.md)。
 - 0.1.2：68 项完整本地检查和 13 个移动端 HTTP 协商场景通过；请求样本由客户端源码派生，并非真机实播。
+- 0.1.3：83 项程序断言、5 个网页脚本测试、8 组网页 HTTP/WebSocket 检查、17 个移动端及媒体库 HTTP 场景通过；实际网页已验证暂停选择和媒体库勾选保存。
 - 本地 WSL 缺少目标 Intel VAAPI/QSV 设备，不能代替 NAS 上的实际播放、持续负载和多用户验收。
 
 ## 编译与打包
 
-需要 .NET SDK 10.0.401、Python 3 和 Linux x64 环境。
+需要 .NET SDK 10.0.401、Node 22、Python 3 和 Linux x64 环境。
 
 ```sh
 bash scripts/build.sh

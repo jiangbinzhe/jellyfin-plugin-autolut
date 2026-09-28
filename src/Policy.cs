@@ -5,13 +5,19 @@ namespace Jellyfin.Plugin.AutoLut;
 
 public static class Policy
 {
-    public static bool Selected(Configuration c, Guid user, string device, Guid item)
+    public static bool SelectedActor(Configuration c, Guid user, string device)
     {
-        var users = Split(c.UserIds); var devices = Split(c.DeviceIds); var items = Split(c.ItemIds);
-        // Require an explicit user AND media allowlist. Device list is an optional additional restriction.
+        var users = Split(c.UserIds); var devices = Split(c.DeviceIds);
         return c.Enabled && users.Any(x => Guid.TryParse(x, out var id) && id == user)
-            && items.Any(x => Guid.TryParse(x, out var id) && id == item)
             && (devices.Length == 0 || devices.Contains(device, StringComparer.Ordinal));
+    }
+    public static bool Selected(Configuration c, Guid user, string device, Guid item, IEnumerable<Guid>? libraries = null)
+    {
+        if (!SelectedActor(c, user, device)) return false;
+        if (Split(c.ItemIds).Any(x => Guid.TryParse(x, out var id) && id == item)) return true;
+        var selected = Split(c.LibraryIds).Select(x => Guid.TryParse(x, out var id) ? id : Guid.Empty)
+            .Where(id => id != Guid.Empty).ToHashSet();
+        return libraries?.Any(selected.Contains) == true;
     }
     private static string[] Split(string text) => text.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
     public static object? Read(object? obj, string property) => obj?.GetType().GetProperty(property)?.GetValue(obj);

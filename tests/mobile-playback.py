@@ -20,6 +20,7 @@ def main():
     p.add_argument("--media-directory", type=Path, required=True)
     p.add_argument("--ffmpeg", type=Path, required=True)
     p.add_argument("--report", type=Path, required=True)
+    p.add_argument("--expected-plugin-version", default="0.1.3.0")
     args = p.parse_args()
     parts = urllib.parse.urlsplit(args.base_url)
     if parts.scheme != "http" or parts.hostname not in ("127.0.0.1", "::1") or parts.username or parts.password:
@@ -37,7 +38,7 @@ def main():
     cred=json.loads(args.credentials.read_text())
     auth=call("/Users/AuthenticateByName",{"Username":cred["username"],"Pw":cred["password"]},"POST")
     authorization+=', Token="'+auth["AccessToken"]+'"'
-    assert any(x["Id"].replace("-","")==pid.replace("-","") and x["Version"]=="0.1.2.0" and x["Status"]=="Active"
+    assert any(x["Id"].replace("-","")==pid.replace("-","") and x["Version"]==args.expected_plugin_version and x["Status"]=="Active"
         for x in call("/Plugins")), "Load the candidate plugin before running this contract test"
     uid=auth["User"]["Id"]
     media=args.media_directory.resolve()
@@ -69,7 +70,7 @@ def main():
     original=call("/Plugins/"+pid+"/Configuration")
     config=dict(original)
     cache=Path("/tmp/autolut-mobile-"+uuid.uuid4().hex)
-    report={"server":"12.1.0","plugin":"0.1.2.0","method":"HTTP replay of representative source-derived requests; not an app/device test",
+    report={"server":"12.1.0","plugin":args.expected_plugin_version,"method":"HTTP replay of representative source-derived requests; not an app/device test",
         "profiles":[],"checks":[],"qsv_pixels":"not-tested","device_playback":"not-tested"}
     checks=report["checks"]
     active=[]
@@ -83,7 +84,7 @@ def main():
         call("/Sessions/Playing/Stopped",{"ItemId":iid,"MediaSourceId":sid,"PlaySessionId":session,"PositionTicks":20_000_000},"POST")
         if session in active: active.remove(session)
     try:
-        config.update({"Enabled":True,"UserIds":uid,"ItemIds":iid,"DeviceIds":"mobile-contract-test","Mode":"Automatic",
+        config.update({"Enabled":True,"UserIds":uid,"ItemIds":iid,"LibraryIds":"","DeviceIds":"mobile-contract-test","Mode":"Automatic",
             "CacheDirectory":str(cache),"FfmpegPath":str(args.ffmpeg),"MaxSessions":1})
         save()
         for fixture in sorted((Path(__file__).parent/"fixtures").glob("*.json")):
@@ -144,6 +145,21 @@ def main():
         normal=request(body)
         assert normal["MediaSources"][0]["SupportsDirectPlay"] and cubes()==n
         checks.append("other-device-direct-play")
+        # A selected library covers its contained media without listing individual IDs.
+        folder=next(f for f in call("/Library/VirtualFolders") if f["Name"]=="AutoLut Mobile Contract")
+        config.update({"DeviceIds":"mobile-contract-test","ItemIds":"","LibraryIds":folder["ItemId"]}); save()
+        response=request(body); active.append(response["PlaySessionId"])
+        assert cubes()==n+1 and not response["MediaSources"][0]["SupportsDirectPlay"]
+        stop(response); n=cubes(); checks.append("library-only-scope-includes-contained-media")
+        config["LibraryIds"]=uuid.uuid4().hex; save()
+        response=request(body); assert cubes()==n and response["MediaSources"][0]["SupportsDirectPlay"]
+        checks.append("other-library-excluded")
+        config.update({"LibraryIds":folder["ItemId"],"UserIds":""}); save()
+        response=request(body); assert cubes()==n and response["MediaSources"][0]["SupportsDirectPlay"]
+        checks.append("library-scope-still-requires-user")
+        config.update({"LibraryIds":"","UserIds":uid}); save()
+        response=request(body); assert cubes()==n and response["MediaSources"][0]["SupportsDirectPlay"]
+        checks.append("empty-media-scope-fails-closed")
         report["retained_luts"]=n
         report["success"]=True
         args.report.parent.mkdir(parents=True,exist_ok=True)

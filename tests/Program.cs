@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 int count = 0;
 void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; Console.WriteLine("PASS " + name); }
 MobileTests.Run(Check);
+WebTests.Run(Check);
 var user = Guid.NewGuid(); var item = Guid.NewGuid();
 var config = new Configuration { Enabled = true, UserIds = user.ToString(), ItemIds = item.ToString() };
 Check(Policy.Selected(config, user, "tv", item), "selected user and media");

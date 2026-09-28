@@ -19,9 +19,11 @@ public sealed class Plugin : BasePlugin<Configuration>, IHasWebPages
 public sealed class Configuration : BasePluginConfiguration
 {
     public bool Enabled { get; set; }
+    public bool WebPlayerButton { get; set; } = true;
     public string UserIds { get; set; } = "";
     public string DeviceIds { get; set; } = "";
     public string ItemIds { get; set; } = "";
+    public string LibraryIds { get; set; } = "";
     public string Mode { get; set; } = "Automatic";
     public string FixedCubePath { get; set; } = "";
     public int MaxWidth { get; set; } = 1920;

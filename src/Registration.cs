@@ -2,6 +2,7 @@ using MediaBrowser.Controller;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -18,6 +19,8 @@ public sealed class Registration : IPluginServiceRegistrator
         if (descriptor is null || descriptor.Lifetime != ServiceLifetime.Singleton || descriptor.ImplementationType?.FullName != "MediaBrowser.MediaEncoding.Transcoding.TranscodeManager") return;
         services.Remove(descriptor);
         services.AddSingleton<LutService>();
+        services.AddSingleton<WebPreferences>();
+        services.AddTransient<IStartupFilter, WebStartupFilter>();
         services.AddScoped<PlaybackFilter>();
         services.Configure<MvcOptions>(o => o.Filters.AddService<PlaybackFilter>());
         services.AddSingleton<ITranscodeManager>(sp => new LutTranscodeManager(

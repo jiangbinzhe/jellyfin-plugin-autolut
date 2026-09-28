@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AutoLut;
 
-public sealed class PlaybackFilter(ILibraryManager library, IUserManager users, IMediaSourceManager sources, IUserDataManager userData, LutService luts, ILogger<PlaybackFilter> logger) : IAsyncActionFilter
+public sealed class PlaybackFilter(ILibraryManager library, IUserManager users, IMediaSourceManager sources, IUserDataManager userData, LutService luts, WebPreferences webPreferences, ILogger<PlaybackFilter> logger) : IAsyncActionFilter
 {
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -43,7 +43,8 @@ public sealed class PlaybackFilter(ILibraryManager library, IUserManager users, 
                 var claim = context.HttpContext.User.FindFirst("Jellyfin-UserId")?.Value;
                 var device = context.HttpContext.User.FindFirst("Jellyfin-DeviceId")?.Value ?? "";
                 if (Guid.TryParse(claim, out var userId) && context.ActionArguments.TryGetValue("itemId", out var id) && id is Guid itemId
-                    && Policy.Selected(c, userId, device, itemId))
+                    && Policy.SelectedActor(c, userId, device)
+                    && (context.HttpContext.User.FindFirst("Jellyfin-Client")?.Value != "Jellyfin Web" || webPreferences.Enabled(userId, device, itemId)))
                 {
                     context.ActionArguments.TryGetValue("playbackInfoDto", out var body);
                     object? Value(string key, string property) => (context.ActionArguments.TryGetValue(key, out var value) ? value : null) ?? Policy.Read(body, property);
@@ -60,7 +61,8 @@ public sealed class PlaybackFilter(ILibraryManager library, IUserManager users, 
                         var item = library.GetItemById<BaseItem>(itemId, user);
                         var media = item is null ? [] : sources.GetStaticMediaSources(item, false, user);
                         // Multiple editions/source switching is deliberately excluded in v0.1.
-                        if (media.Count == 1 && Policy.Eligible(media[0], c, out var video)
+                        if (item != null && Policy.Selected(c, userId, device, itemId, library.GetCollectionFolders(item).Select(f => f.Id))
+                            && media.Count == 1 && Policy.Eligible(media[0], c, out var video)
                             && (Value("mediaSourceId", "MediaSourceId") is not string requestedSource || requestedSource == media[0].Id)
                             && PlaybackCompatibility.CanPrepareSubtitle(media[0], Value("subtitleStreamIndex", "SubtitleStreamIndex") as int?, compatible,
                                 Policy.Read(body, "AlwaysBurnInSubtitleWhenTranscoding") is true)

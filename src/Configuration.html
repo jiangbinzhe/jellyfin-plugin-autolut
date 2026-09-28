@@ -2,31 +2,73 @@
 <html><head><title>Auto LUT</title></head><body>
 <div id="AutoLutPage" data-role="page" class="page type-interior pluginConfigurationPage">
 <div data-role="content"><div class="content-primary"><form id="AutoLutForm">
-<h2>Auto LUT · 0.1.2 预发布版</h2>
+<h2>Auto LUT · 0.1.3 预发布版</h2>
 <p>仅 Jellyfin 12.1 / Linux x64。SDR BT.709、8-bit、最高 1080p；CPU LUT + QSV 编码。每次播放固定一个 LUT。</p>
-<label class="checkboxContainer"><input id="Enabled" type="checkbox" is="emby-checkbox"><span>启用（必须同时填写用户和媒体白名单）</span></label>
-<div class="inputContainer"><label class="inputLabel" for="UserIds">用户 ID（逗号分隔）</label><input is="emby-input" id="UserIds"></div>
-<div class="inputContainer"><label class="inputLabel" for="ItemIds">媒体 ID（逗号分隔）</label><input is="emby-input" id="ItemIds"></div>
+<label class="checkboxContainer"><input id="Enabled" type="checkbox" is="emby-checkbox"><span>启用（必须选择用户，以及媒体库或单个媒体）</span></label>
+<label class="checkboxContainer"><input id="WebPlayerButton" type="checkbox" is="emby-checkbox"><span>网页播放器显示 LUT 开关（保存后刷新网页）</span></label>
+<div class="inputContainer"><label class="inputLabel" for="UserIds">用户 ID（不是登录用户名；逗号分隔）</label><input is="emby-input" id="UserIds"></div>
+<div class="inputContainer"><h3>允许调色的媒体库</h3><p>勾选后覆盖库内的电影和剧集。未选择媒体库时，可用下方单个媒体 ID 测试。用户白名单始终有效。</p><div id="LibraryChoices" role="group" aria-label="媒体库白名单"></div><p id="LibraryLoadStatus" role="status"></p></div>
+<div class="inputContainer"><label class="inputLabel" for="ItemIds">额外允许的单个媒体 ID（可留空；逗号分隔）</label><input is="emby-input" id="ItemIds"></div>
 <div class="inputContainer"><label class="inputLabel" for="DeviceIds">设备 ID（可留空；填写后进一步限制）</label><input is="emby-input" id="DeviceIds"></div>
 <div class="selectContainer"><label class="selectLabel" for="Mode">分析方式</label><select is="emby-select" id="Mode"><option value="Automatic">自动：中央区域肤色分析</option><option value="Fixed">固定：读取 .cube 文件</option></select></div>
 <div class="inputContainer"><label class="inputLabel" for="FixedCubePath">固定 LUT 的容器内绝对路径</label><input is="emby-input" id="FixedCubePath"></div>
 <p>无可用肤色、HDR、10-bit、多版本媒体及烧录字幕等会跳过。支持由客户端单独显示的普通文本字幕。自动分析尚不含人脸检测。最多保留 8 个未结束会话；收到播放结束通知后释放额度。未正常结束的会话会占用额度，重启后恢复。</p>
 <button is="emby-button" type="submit" class="raised button-submit block"><span>保存</span></button>
-</form></div></div></div>
+</form></div></div>
 <script>
 (function () {
  const id = '70a81c22-b61d-4bdd-bd86-2048e0b29a5a';
  const page = document.querySelector('#AutoLutPage');
+ let selectedLibraries = [];
+ const normalizeId = value => String(value || '').replace(/-/g, '').toLowerCase();
  const fields = ['UserIds', 'ItemIds', 'DeviceIds', 'Mode', 'FixedCubePath'];
- page.addEventListener('pageshow', async function () {
+ let loading = false, loaded = false;
+ const submit = page.querySelector('button[type="submit"]'); submit.disabled = true;
+ async function loadConfiguration() {
+   if (loading) return;
+   loading = true; loaded = false; submit.disabled = true;
    Dashboard.showLoadingMsg();
-   try { const c = await ApiClient.getPluginConfiguration(id); page.querySelector('#Enabled').checked = c.Enabled; fields.forEach(k => page.querySelector('#' + k).value = c[k] || ''); }
-   finally { Dashboard.hideLoadingMsg(); }
- });
+   try {
+     const c = await ApiClient.getPluginConfiguration(id);
+     page.querySelector('#Enabled').checked = c.Enabled;
+     page.querySelector('#WebPlayerButton').checked = c.WebPlayerButton !== false;
+     fields.forEach(k => page.querySelector('#' + k).value = c[k] || '');
+     selectedLibraries = (c.LibraryIds || '').split(/[,;\r\n]+/).map(normalizeId).filter(Boolean);
+     const list = page.querySelector('#LibraryChoices'); list.replaceChildren();
+     try {
+       const folders = await ApiClient.getVirtualFolders();
+       const shown = new Set();
+       function add(value, name) {
+         const label = document.createElement('label'); label.className = 'checkboxContainer';
+         const input = document.createElement('input'); input.type = 'checkbox'; input.dataset.libraryId = value;
+         input.checked = selectedLibraries.includes(value);
+         const text = document.createElement('span'); text.textContent = name;
+         label.append(input, text); list.append(label);
+         input.addEventListener('change', () => {
+           selectedLibraries = selectedLibraries.filter(x => x !== value);
+           if (input.checked) selectedLibraries.push(value);
+         });
+       }
+       for (const f of folders) {
+         const value = normalizeId(f.ItemId); if (!/^[a-f0-9]{32}$/.test(value)) continue;
+         shown.add(value); add(value, f.Name);
+       }
+       for (const value of selectedLibraries) if (!shown.has(value)) add(value, '已保存但当前找不到的媒体库：' + value);
+       page.querySelector('#LibraryLoadStatus').textContent = folders.length ? '' : '尚未创建媒体库';
+     } catch {
+       page.querySelector('#LibraryLoadStatus').textContent = '媒体库列表加载失败；已保存的选择会保留，请刷新重试。';
+     }
+     loaded = true; submit.disabled = false;
+   } catch {
+     page.querySelector('#LibraryLoadStatus').textContent = '配置加载失败，暂时不能保存。请刷新后重试。';
+   } finally { loading = false; Dashboard.hideLoadingMsg(); }
+ }
+ page.addEventListener('viewshow', loadConfiguration);
+ loadConfiguration();
  page.querySelector('form').addEventListener('submit', async function (e) {
-   e.preventDefault(); Dashboard.showLoadingMsg();
-   try { const c = await ApiClient.getPluginConfiguration(id); c.Enabled = page.querySelector('#Enabled').checked; fields.forEach(k => c[k] = page.querySelector('#' + k).value.trim()); const result = await ApiClient.updatePluginConfiguration(id, c); Dashboard.processPluginConfigurationUpdateResult(result); }
+   e.preventDefault(); if (!loaded || loading) return; Dashboard.showLoadingMsg();
+   try { const c = await ApiClient.getPluginConfiguration(id); c.Enabled = page.querySelector('#Enabled').checked; c.WebPlayerButton = page.querySelector('#WebPlayerButton').checked; fields.forEach(k => c[k] = page.querySelector('#' + k).value.trim()); c.LibraryIds = selectedLibraries.join(','); const result = await ApiClient.updatePluginConfiguration(id, c); Dashboard.processPluginConfigurationUpdateResult(result); }
    finally { Dashboard.hideLoadingMsg(); }
  });
 })();
-</script></body></html>
+</script></div></body></html>
