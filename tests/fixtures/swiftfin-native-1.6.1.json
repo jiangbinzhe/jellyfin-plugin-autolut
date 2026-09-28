@@ -1,0 +1,39 @@
+{
+  "Name": "Swiftfin",
+  "MaxStreamingBitrate": 20000000,
+  "DirectPlayProfiles": [
+    {
+      "Container": "mp4,mkv",
+      "Type": "Video",
+      "VideoCodec": "h264,hevc",
+      "AudioCodec": "aac"
+    }
+  ],
+  "TranscodingProfiles": [
+    {
+      "Type": "Video",
+      "Container": "mp4",
+      "VideoCodec": "av1,hevc,h264,mpeg4",
+      "AudioCodec": "aac,ac3,alac,eac3,flac",
+      "Context": "Streaming",
+      "Protocol": "hls",
+      "EnableSubtitlesInManifest": true,
+      "MinSegments": 2,
+      "BreakOnNonKeyFrames": true
+    }
+  ],
+  "SubtitleProfiles": [
+    {
+      "Format": "ttml",
+      "Method": "Embed"
+    },
+    {
+      "Format": "pgssub",
+      "Method": "Encode"
+    },
+    {
+      "Format": "vtt",
+      "Method": "Hls"
+    }
+  ]
+}

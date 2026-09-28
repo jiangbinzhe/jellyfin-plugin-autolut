@@ -1,20 +1,13 @@
-# Auto LUT 0.1.1 — Experimental preview
+# 0.1.2 预发布版 — Android / Swiftfin
 
-面向 Jellyfin 12.1 / Linux x64 的 SDR 自动 LUT 插件预发布。
+用于安装与兼容性测试的预发布版，尚未完成 NAS + 真机实播验收。
 
-- 加入 Jellyfin 图形安装用的仓库清单与 ZIP 布局。
-- 包内 Node 运行时在需要时恢复本文件的用户执行权限。
-- 保留用户/媒体/设备白名单、自动/固定 LUT、每次播放会话冻结 LUT。
-- 安装后默认关闭。
+- 为 Android 手机/平板 2.7.3 和 Swiftfin 1.6.1 两种内置播放器模式补充 HLS/H.264 协商。
+- 保留客户端 TS/fMP4、音频、码率和字幕能力；下载与强制 Direct Play 配置保持普通行为。
+- 支持单独交付的普通文本字幕，继续排除烧录、ASS、图片字幕、HDR 和 4K。
+- 正常播放结束后释放额度；停止 HLS 编码不等于结束播放，seek 所需会话会保留。
+- 未提供起播时间时，自动分析使用当前用户保存进度。
+- 单视频流抽帧按视频类型选择，避免服务端元数据索引与文件索引不同导致失败。
 
-当前使用 CPU LUT + H.264 QSV 编码，只接入简单 VAAPI 解码 → QSV 编码管线，最大 1080p SDR 8-bit。HDR/DV、10-bit、4K、复杂字幕等不在支持范围。自动模式当前使用中央区域肤色采样，没有人脸检测和播放中周期更新。
-
-每次服务进程启动最多准备 8 个成功调色会话，之后普通播放；本版尚无会话自动回收。
-
-验证记录：本版 47 项检查通过；本地隔离 Jellyfin 的正式仓库安装后端已验证下载校验、安装、重启加载和自动分析流程。目标 NAS 上最终 DLL 的 QSV/HLS 实播仍待验收，因此以预发布形式提供，不宣称生产可用或 4K 性能。
-
-仓库地址固定到本次发布：
-
-https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.1/manifest.json
-
-添加后刷新插件目录，安装 Auto LUT (Preview) 并重启 Jellyfin。优先只允许一个测试用户和一部 SDR 媒体。
+播放器内尚无 LUT 开关。异常退出和部分仅停止编码的音轨切换仍可能占用会话额度。
+部署条件、测试边界与回退参见 README 和 docs/MOBILE_COMPATIBILITY.md。

@@ -15,12 +15,23 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
     private readonly SemaphoreSlim _analysis = new(1, 1);
     private int _reserved;
     private readonly string _runId = Guid.NewGuid().ToString("N");
-    // Bounded for the lifetime of this server process. Do not evict live/seekable sessions by wall clock.
+    // Bound pending/unclosed sessions. Never evict on a timer or HLS encoder stop.
     public bool TryReserve(Configuration c) => Reserve(Math.Clamp(c.MaxSessions, 1, 64));
     private bool Reserve(int max) { if (Interlocked.Increment(ref _reserved) <= max) return true; Interlocked.Decrement(ref _reserved); return false; }
     public void Release(SessionPlan? plan) { if (plan != null) DeletePlan(plan); Interlocked.Decrement(ref _reserved); }
     public bool Bind(string session, SessionPlan plan) => _sessions.TryAdd(session, plan);
     public SessionPlan? Get(string? session) => session != null && _sessions.TryGetValue(session, out var plan) ? plan : null;
+
+    public bool Complete(string? session, Guid user, string device, Guid item)
+    {
+        var plan = Get(session);
+        if (plan is null || plan.UserId != user || plan.DeviceId != device || plan.ItemId != item
+            || !_sessions.TryRemove(new KeyValuePair<string, SessionPlan>(session!, plan))) return false;
+        Interlocked.Decrement(ref _reserved);
+        // FFmpeg may still be stopping. Keep immutable files until offline cache maintenance.
+        logger.LogInformation("AutoLut closed playback session; reservation released");
+        return true;
+    }
 
     public async Task<SessionPlan?> Prepare(Configuration c, Guid user, string device, Guid item, string media, MediaStream video, long ticks, CancellationToken ct)
     {
@@ -48,7 +59,7 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
                 var raw = Path.Combine(dir, "frame.rgba");
                 var time = (Math.Max(0, ticks) / (double)TimeSpan.TicksPerSecond).ToString("0.###", CultureInfo.InvariantCulture);
                 await Run(c.FfmpegPath, ["-nostdin", "-v", "error", "-threads", "1", "-filter_threads", "1", "-noautorotate", "-ss", time,
-                    "-i", media, "-map", $"0:{video.Index}", "-frames:v", "1", "-an", "-sn", "-vf", $"scale={w}:{h}", "-pix_fmt", "rgba", "-f", "rawvideo", "-n", raw], c, ct).ConfigureAwait(false);
+                    "-i", media, "-map", "0:v:0", "-frames:v", "1", "-an", "-sn", "-vf", $"scale={w}:{h}", "-pix_fmt", "rgba", "-f", "rawvideo", "-n", raw], c, ct).ConfigureAwait(false);
                 if (new FileInfo(raw).Length != w * h * 4) throw new InvalidDataException("Unexpected frame dimensions");
                 var request = Path.Combine(dir, "frame.json");
                 await File.WriteAllTextAsync(request, JsonSerializer.Serialize(new { rgba = "frame.rgba", width = w, height = h }), ct).ConfigureAwait(false);

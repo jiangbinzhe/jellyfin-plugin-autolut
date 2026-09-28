@@ -1,0 +1,67 @@
+{
+  "Name": "Jellyfin Android",
+  "MaxStreamingBitrate": 20000000,
+  "DirectPlayProfiles": [
+    {
+      "Container": "mp4,mkv",
+      "Type": "Video",
+      "VideoCodec": "h264,hevc",
+      "AudioCodec": "aac"
+    }
+  ],
+  "TranscodingProfiles": [
+    {
+      "Type": "Video",
+      "Container": "ts",
+      "VideoCodec": "h264",
+      "AudioCodec": "mp1,mp2,mp3,aac,ac3,eac3,dts,mlp,truehd",
+      "Context": "Streaming",
+      "Protocol": "hls",
+      "EnableSubtitlesInManifest": false,
+      "MinSegments": 2,
+      "BreakOnNonKeyFrames": true
+    }
+  ],
+  "SubtitleProfiles": [
+    {
+      "Format": "dvbsub",
+      "Method": "Embed"
+    },
+    {
+      "Format": "pgssub",
+      "Method": "Embed"
+    },
+    {
+      "Format": "srt",
+      "Method": "Embed"
+    },
+    {
+      "Format": "subrip",
+      "Method": "Embed"
+    },
+    {
+      "Format": "ttml",
+      "Method": "Embed"
+    },
+    {
+      "Format": "srt",
+      "Method": "External"
+    },
+    {
+      "Format": "subrip",
+      "Method": "External"
+    },
+    {
+      "Format": "ttml",
+      "Method": "External"
+    },
+    {
+      "Format": "vtt",
+      "Method": "External"
+    },
+    {
+      "Format": "webvtt",
+      "Method": "External"
+    }
+  ]
+}

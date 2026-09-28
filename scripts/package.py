@@ -65,7 +65,7 @@ def main():
         'description': 'Experimental SDR automatic LUT. Linux x64, Jellyfin 12.1, CPU LUT with QSV encoding. Disabled by default.',
         'overview': 'Session-scoped automatic or fixed LUT for explicitly selected users and media.',
         'owner': args.repository.split('/')[0] if args.repository else 'Local preview', 'category': 'General',
-        'versions': [{'version': assembly_version, 'changelog': 'Preview: GUI catalog packaging and bundled worker executable permission handling.',
+        'versions': [{'version': assembly_version, 'changelog': 'Mobile preview: Android and Swiftfin H264/HLS negotiation, separate text subtitles, playback-stop cleanup and robust video sampling.',
             'targetAbi': '12.1.0.0', 'sourceUrl': base_url.rstrip('/') + '/' + output.name, 'checksum': md5,
             'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()}]}]
     (dist / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')

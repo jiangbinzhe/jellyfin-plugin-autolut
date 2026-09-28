@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 int count = 0;
 void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; Console.WriteLine("PASS " + name); }
+MobileTests.Run(Check);
 var user = Guid.NewGuid(); var item = Guid.NewGuid();
 var config = new Configuration { Enabled = true, UserIds = user.ToString(), ItemIds = item.ToString() };
 Check(Policy.Selected(config, user, "tv", item), "selected user and media");
@@ -64,7 +65,15 @@ try
     File.WriteAllText(input, "changed"); Check(File.ReadAllText(plan!.CubePath) == identity, "source update cannot mutate active session");
     Check(service.Bind("session1", plan) && !service.Bind("session1", plan), "unique session binding");
     Check(service.Get("session1") == plan && service.Get("other") == null, "session isolation");
-    service.Release(plan); Check(!File.Exists(plan.CubePath) && service.TryReserve(config), "failed playback releases files and reservation");
+    Check(!service.Complete("session1", Guid.NewGuid(), "tv", item), "other user cannot close session");
+    Check(!service.Complete("session1", user, "other", item), "other device cannot close session");
+    Check(!service.Complete("session1", user, "tv", Guid.NewGuid()), "other item cannot close session");
+    Check(service.Get("session1") == plan, "rejected stop preserves seek plan");
+    Check(service.Complete("session1", user, "tv", item), "playback stopped releases session");
+    Check(service.Get("session1") is null && File.Exists(plan.CubePath), "closed plan removed but stopping encoder keeps cube");
+    Check(!service.Complete("session1", user, "tv", item), "repeated stop cannot release twice");
+    Check(service.TryReserve(config) && !service.TryReserve(config), "released slot reused without server restart");
+    service.Release(null);
     var ffmpeg = Environment.GetEnvironmentVariable("AUTOLUT_TEST_FFMPEG");
     if (!string.IsNullOrEmpty(ffmpeg))
     {
@@ -76,10 +85,10 @@ try
             var error = await process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync();
             Check(process.ExitCode == 0, "synthetic frame generated " + color + " " + error);
         }
-        config.Mode = "Automatic"; config.FfmpegPath = ffmpeg; stream.Width = 640; stream.Height = 360;
+        config.Mode = "Automatic"; config.FfmpegPath = ffmpeg; stream.Width = 640; stream.Height = 360; stream.Index = 1; // Server metadata index need not match the physical file.
         await Generate("0xc18d73");
         var automatic = await service.Prepare(config, user, "tv", item, media, stream, 0, CancellationToken.None);
-        Check(automatic != null, "real FFmpeg extraction and bundled Node analysis");
+        Check(automatic != null, "single-video extraction ignores mismatched metadata index and runs Node");
         LutService.ValidateCube(File.ReadAllText(automatic!.CubePath));
         Check(File.Exists(automatic.CubePath + ".json"), "automatic parameters and LUT hash recorded");
         Check(!File.Exists(Path.Combine(Path.GetDirectoryName(automatic.CubePath)!, "frame.rgba")), "raw frame removed after analysis");

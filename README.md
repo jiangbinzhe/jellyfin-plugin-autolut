@@ -1,23 +1,27 @@
 # Jellyfin Auto LUT — Preview
 
-为选定用户、设备和媒体自动生成调色 LUT，并接入 Jellyfin 的服务端转码流程。当前版本是 **0.1.1 预发布版**，默认关闭。
+为选定用户、设备和媒体自动生成调色 LUT，并接入 Jellyfin 的服务端转码流程。当前为 **0.1.2 预发布版**，默认关闭。
 
 > 当前范围：Jellyfin 12.1、Linux x64、SDR BT.709、8-bit、最大 1080p；CPU LUT + QSV 编码。最终插件在实际 NAS 上的 QSV/HLS 实播尚待验收，不适合直接全库启用。
 
 ## 功能
 
 - 用户和媒体白名单必须同时匹配，设备白名单可进一步限制。
-- 自动模式抽取播放起点的一帧，最长边缩放到 640，分析中央区域肤色并生成 33³ LUT；也支持固定 `.cube` 文件。
+- 自动模式抽取请求起点（未提供时用该用户保存进度）的一帧，最长边缩放到 640，分析中央区域肤色并生成 33³ LUT；也支持固定 `.cube` 文件。
 - 无可用肤色或准备失败时保留普通播放。
 - 生成成功后通过 PlaybackInfo 强制视频转码；每次播放会话冻结 LUT，避免不同用户或不同调色结果串用缓存。
 - 随包附带 Node 运行时，无需在容器中另外安装 Node 或启动 sidecar。
 
+## 移动客户端
+
+0.1.2 针对 Android 手机/平板 2.7.3 内置播放器，以及 Swiftfin 1.6.1 的 Swiftfin 和 Native 模式补充服务端协商、独立文本字幕及播放结束额度回收。详情与实机验收见 [移动端兼容性](docs/MOBILE_COMPATIBILITY.md)。此预发布版尚未完成手机实播或 NAS QSV 验收；播放器内仍没有 LUT 按钮。
+
 ## 安装
 
-发布后，在 Jellyfin 管理面板 → 插件 → 仓库中添加：
+0.1.2 可在 Jellyfin 管理面板 → 插件 → 仓库中添加：
 
 ```text
-https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.1/manifest.json
+https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.2/manifest.json
 ```
 
 刷新插件目录，安装 **Auto LUT (Preview)**，然后重启 Jellyfin。该地址固定到此次预发布，便于手动选择升级；不是自动跟随最新版本的稳定仓库。
@@ -38,11 +42,11 @@ VAAPI 硬解 → VAAPI 缩放 → 下载帧 → RGB 浮点 CPU lut3d
 | HDR10 / HLG / Dolby Vision / 10-bit / 4K | 跳过 |
 | 未明确标记 BT.709 色彩信息 | 跳过 |
 | 直播、网络输入、多媒体源、多视频流、隔行、旋转视频 | 跳过 |
-| 选中的字幕、复杂滤镜图 | 跳过或保持原转码命令 |
-| 客户端 | 需要使用带 DeviceProfile 的 POST PlaybackInfo；静态 URL/下载不被强制处理 |
+| 字幕 | 支持单独交付的 SRT/VTT/TTML；ASS、图片字幕、烧录字幕及复杂图跳过 |
+| 客户端 | 带 DeviceProfile 的 POST PlaybackInfo，须声明 HLS/H.264；下载及强制 Direct Play 能力配置不被强制处理 |
 | 自动分析 | 中央 50% 区域肤色分析；尚无 MediaPipe 人脸检测 |
 | LUT 更新 | 每次播放生成一次，尚无播放中周期更新 |
-| 成功会话额度 | 每次服务启动最多 8 个；达到额度后普通播放。初版不自动淘汰会话，以保留 seek 所需 LUT |
+| 会话额度 | 最多 8 个未关闭会话；正常播放结束后释放，异常退出或仅停止编码的切换可能继续占用 |
 | 数据保留 | 抽帧原始数据用后删除；LUT 保存在 `/cache/autolut`，旧运行目录需在无相关播放时清理 |
 
 当前 GPU/Vulkan 映射测试出现过绿屏和 10-bit 损坏，因此此版本没有全 GPU LUT 选项。关闭插件只影响新请求；已有会话保持冻结 LUT，结束后重新播放即可恢复。FFmpeg 实际编码失败时不自动重试，请关闭插件重新播放并检查日志。
@@ -52,6 +56,7 @@ VAAPI 硬解 → VAAPI 缩放 → 下载帧 → RGB 浮点 CPU lut3d
 - 原 0.1.0：WSL .NET 10 编译、46 项策略/会话/真实抽帧与 Node 联动检查通过。
 - 独立官方 Jellyfin 12.1：插件加载、配置页面和实际 PlaybackInfo 白名单/强制转码流程通过。
 - 0.1.1：47 项检查通过；通过 Jellyfin 正式仓库安装后端完成下载校验、安装、重启加载及自动分析验证，详见 [验证记录](docs/VALIDATION.md)。
+- 0.1.2：68 项完整本地检查和 13 个移动端 HTTP 协商场景通过；请求样本由客户端源码派生，并非真机实播。
 - 本地 WSL 缺少目标 Intel VAAPI/QSV 设备，不能代替 NAS 上的实际播放、持续负载和多用户验收。
 
 ## 编译与打包
