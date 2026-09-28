@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.7.0",
+        "changelog": "Add opt-in interlaced / SMPTE 170M SDR support. Preserve supported Jellyfin VAAPI deinterlacing; convert primaries, transfer and matrix to BT.709 before CPU LUT processing. Defaults remain off. HDR/10-bit remain excluded; the complete NAS hardware pipeline still needs playback validation.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.7/AutoLut_0.1.7.0-linux-x64.zip",
+        "checksum": "a37f54b742dc7cae161d1ed36a231b47",
+        "timestamp": "2026-09-28T15:54:18.031770+00:00"
+      },
+      {
         "version": "0.1.6.0",
         "changelog": "Add two independent opt-in modes: assume missing color tags are BT.709 for 8-bit video, and allow SDR input up to 3840x2160. Defaults remain off; HDR/Dolby Vision/10-bit and larger inputs stay excluded. NAS 4K real-time performance is not yet validated.",
         "targetAbi": "12.1.0.0",
