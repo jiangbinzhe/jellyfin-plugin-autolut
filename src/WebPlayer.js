@@ -3,6 +3,7 @@
     'use strict';
     if (window.__autoLutWebInstalled) return;
     window.__autoLutWebInstalled = true;
+    let connectionError = '';
     let button, state, pending = null, connected = false, busy = false, polling = false;
     function client() {
         const api = window.ApiClient;
@@ -35,9 +36,9 @@
         if (!button) return;
         button.disabled = busy || !connected || !state?.canToggle;
         const enabled = pending?.enabled ?? state?.enabled;
-        button.textContent = busy ? 'LUT：切换中' : !state ? 'LUT：连接中' : !state.canToggle ? 'LUT：不可用' : (enabled ? 'LUT：开' : 'LUT：关') + (pending ? '·待续播' : '');
+        button.textContent = busy ? 'LUT：切换中' : !connected && connectionError ? 'LUT：未连接' : !state ? 'LUT：连接中' : !state.canToggle ? 'LUT：不可用' : (enabled ? 'LUT：开' : 'LUT：关') + (pending ? '·待续播' : '');
         button.setAttribute('aria-pressed', String(!!enabled));
-        button.title = (!connected ? '正在同步播放状态，按钮会保留；请稍后重试。' : pending ? '已记住选择，继续播放时应用。再次点击可取消。' : state?.reason) || '仅对此用户、浏览器和视频生效；切换会短暂缓冲。开启表示允许服务端调色，实际效果取决于处理条件。';
+        button.title = (!connected ? (connectionError || '正在同步播放状态，按钮会保留；请稍后重试。') : pending ? '已记住选择，继续播放时应用。再次点击可取消。' : state?.reason) || '仅对此用户、设备和视频生效；切换会短暂缓冲。开启表示允许服务端调色，实际效果取决于处理条件。';
         button.setAttribute('aria-label', button.textContent + '。' + button.title);
         button.style.color = state?.canToggle && enabled ? '#54d4ff' : '#ffffff';
     }
@@ -45,9 +46,13 @@
         if (polling || busy || !button?.isConnected || document.hidden) return;
         polling = true;
         try {
-            state = await request('State'); connected = true;
+            state = await request('State'); connected = true; connectionError = '';
             if (pending && (pending.sessionId !== state.sessionId || pending.itemId !== state.itemId)) pending = null;
-        } catch {
+        } catch (error) {
+            connectionError = error?.responseJSON?.error || (error?.status === 401
+                ? '登录已失效，请重新登录当前服务器'
+                : error?.status === 404 ? '未找到当前设备正在播放的视频，请重新播放后重试'
+                : '播放状态暂时无法连接，正在重试');
             // Old playback-stop reports can temporarily clear NowPlayingItem during restart.
             // Keep the control and its last selection visible while waiting for fresh progress.
             connected = false;

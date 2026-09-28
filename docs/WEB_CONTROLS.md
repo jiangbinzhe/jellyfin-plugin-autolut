@@ -49,3 +49,10 @@ tests/mobile-playback.py 增加媒体库包含、其他库排除、用户限制�
 tests/web-switch.mjs 使用 Node 22 和真实 HTTP/WebSocket，参数为 --credentials、--item、--fixture、--report，可用 --url 指定隔离回环地址。
 测试账号与媒体须已被管理员选中，凭据 JSON 只用于临时本地账号，报告放 .build，不提交凭据。
 该测试检查鉴权、设备隔离、重播参数、关闭后恢复 Direct Play、开启后重新准备、暂停保护，不代替 NAS GPU 画面验收。
+
+## 0.1.5：Jellyfin Mobile 网页按钮修复
+
+- 删除仅允许 `Jellyfin Web` 客户端名称的限制；同服务器网页壳客户端按认证用户、设备、客户端、版本精确匹配唯一活动视频会话。
+- 开关选择在移动端请求准备 LUT 前也会检查，修复移动端关闭选择被忽略的问题。白名单、转码权限、WebSocket 播放控制和暂停保护继续生效。
+- 首次状态查询失败显示“未连接”和原因，并继续重试，不再永久显示“连接中”。
+- 仅适用于实际加载服务器网页播放器的界面，不为 Swiftfin 或 App 原生播放器增加按钮。iOS 真机开关和重播仍需验收；这不是 Swiftfin 默认播放器黑屏的修复。

@@ -44,7 +44,7 @@ public sealed class PlaybackFilter(ILibraryManager library, IUserManager users, 
                 var device = context.HttpContext.User.FindFirst("Jellyfin-DeviceId")?.Value ?? "";
                 if (Guid.TryParse(claim, out var userId) && context.ActionArguments.TryGetValue("itemId", out var id) && id is Guid itemId
                     && Policy.SelectedActor(c, userId, device)
-                    && (context.HttpContext.User.FindFirst("Jellyfin-Client")?.Value != "Jellyfin Web" || webPreferences.Enabled(userId, device, itemId)))
+                    && webPreferences.Enabled(userId, device, itemId))
                 {
                     context.ActionArguments.TryGetValue("playbackInfoDto", out var body);
                     object? Value(string key, string property) => (context.ActionArguments.TryGetValue(key, out var value) ? value : null) ?? Policy.Read(body, property);

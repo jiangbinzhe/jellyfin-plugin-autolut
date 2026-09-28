@@ -4,8 +4,8 @@ import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../src/WebPlayer.js', import.meta.url), 'utf8');
 const settle = async () => { for (let n = 0; n < 5; n++) await new Promise(setImmediate); };
-function harness({ cachedFirst = false } = {}) {
-    const h = { state: { sessionId: 'session-a', itemId: 'item-a', enabled: true, canToggle: true, isPaused: false }, posts: [], timers: [], intervals: [], fail: false };
+function harness({ cachedFirst = false, initialFailure = false } = {}) {
+    const h = { state: { sessionId: 'session-a', itemId: 'item-a', enabled: true, canToggle: true, isPaused: false }, posts: [], timers: [], intervals: [], fail: initialFailure };
     const events = {};
     const element = () => ({ style: {}, hidden: false, isConnected: true, attrs: {},
         setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(k, v) { this[k] = v; }, appendChild() {}, remove() { this.isConnected = false; } });
@@ -24,7 +24,7 @@ function harness({ cachedFirst = false } = {}) {
     const api = { getCurrentUserId: () => 'test-user', getUrl: path => 'http://localhost:18096/jellyfin/' + path,
         ajax: async req => {
             if (req.type === 'POST') { const body = JSON.parse(req.data); h.posts.push(body); h.state.enabled = body.enabled; return { enabled: body.enabled, restarting: true }; }
-            if (h.fail) throw new Error('Transient playback transition');
+            if (h.fail) throw Object.assign(new Error('Transient playback transition'), { status: 404 });
             return structuredClone(h.state);
         } };
     const document = { hidden: false, body: element(), fullscreenElement: null,
@@ -99,4 +99,15 @@ test('periodic repair restores a detached button without duplicate controls', as
     const removed = h.button; removed.remove(); await h.refresh();
     assert.notEqual(h.button, removed); assert.equal(h.button.hidden, false);
     const repaired = h.button; await h.refresh(); assert.equal(h.button, repaired);
+});
+
+test('initial missing session shows a useful failure and recovers automatically', async () => {
+    const h = harness({ initialFailure: true }); await settle();
+    assert.equal(h.button.textContent, 'LUT：未连接');
+    assert.match(h.button.title, /未找到当前设备/);
+    assert.equal(h.button.disabled, true);
+    await h.click(); assert.equal(h.posts.length, 0);
+    h.fail = false; await h.refresh();
+    assert.equal(h.button.textContent, 'LUT：开');
+    assert.equal(h.button.disabled, false);
 });

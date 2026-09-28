@@ -32,17 +32,7 @@ public sealed class WebController(ISessionManager sessions, IUserManager users, 
         return File(typeof(Plugin).Assembly.GetManifestResourceStream("Jellyfin.Plugin.AutoLut.WebPlayer.js")!, "application/javascript; charset=utf-8");
     }
 
-    private SessionInfo? OwnSession()
-    {
-        if (!Guid.TryParse(User.FindFirst("Jellyfin-UserId")?.Value, out var user)) return null;
-        var device = User.FindFirst("Jellyfin-DeviceId")?.Value;
-        var client = User.FindFirst("Jellyfin-Client")?.Value;
-        var version = User.FindFirst("Jellyfin-Version")?.Value;
-        if (string.IsNullOrEmpty(device) || client != "Jellyfin Web") return null;
-        var matches = sessions.Sessions.Where(s => s.UserId == user && s.DeviceId == device && s.Client == client && s.ApplicationVersion == version
-            && s.IsActive && s.NowPlayingItem?.MediaType.ToString() == "Video").Take(2).ToArray();
-        return matches.Length == 1 ? matches[0] : null;
-    }
+    private SessionInfo? OwnSession() => WebSessionLookup.Find(sessions.Sessions, User);
 
     private string? Unavailable(SessionInfo session)
     {
@@ -67,7 +57,7 @@ public sealed class WebController(ISessionManager sessions, IUserManager users, 
     {
         Response.Headers.CacheControl = "no-store";
         var session = OwnSession();
-        if (session is null) return NotFound();
+        if (session is null) return NotFound(new { error = "未找到当前设备正在播放的视频，请重新播放后重试" });
         var reason = Unavailable(session);
         return Ok(new { sessionId = session.Id, itemId = session.NowPlayingItem.Id,
             enabled = preferences.Enabled(session.UserId, session.DeviceId, session.NowPlayingItem.Id),

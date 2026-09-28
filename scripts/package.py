@@ -65,7 +65,7 @@ def main():
         'description': 'Experimental SDR automatic LUT. Linux x64, Jellyfin 12.1, CPU LUT with QSV encoding. Disabled by default.',
         'overview': 'Session-scoped automatic or fixed LUT for explicitly selected users and media.',
         'owner': args.repository.split('/')[0] if args.repository else 'Local preview', 'category': 'General',
-        'versions': [{'version': assembly_version, 'changelog': 'Use tetrahedral CPU LUT interpolation with float precision; fix missing controls and stale playback positions when Jellyfin caches player pages. Refresh the web client after updating.',
+        'versions': [{'version': assembly_version, 'changelog': 'Fix web-player LUT controls in Jellyfin Mobile: match the authenticated client session and honor device-scoped opt-out. Show recoverable state-query errors. Reload the app web view after updating; iOS playback acceptance is pending.',
             'targetAbi': '12.1.0.0', 'sourceUrl': base_url.rstrip('/') + '/' + output.name, 'checksum': md5,
             'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()}]}]
     (dist / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
