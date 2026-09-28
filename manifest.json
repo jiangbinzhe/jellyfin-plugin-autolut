@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "70a81c22-b61d-4bdd-bd86-2048e0b29a5a",
+    "name": "Auto LUT (Preview)",
+    "description": "Experimental SDR automatic LUT. Linux x64, Jellyfin 12.1, CPU LUT with QSV encoding. Disabled by default.",
+    "overview": "Session-scoped automatic or fixed LUT for explicitly selected users and media.",
+    "owner": "jiangbinzhe",
+    "category": "General",
+    "versions": [
+      {
+        "version": "0.1.3.0",
+        "changelog": "Web preview: automatically injected player toggle, scoped playback opt-out and restart, plus library allowlist selection.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.3/AutoLut_0.1.3.0-linux-x64.zip",
+        "checksum": "906311818469230fe98be022338e28a1",
+        "timestamp": "2026-09-28T06:17:57.899386+00:00"
+      }
+    ]
+  }
+]

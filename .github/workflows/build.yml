@@ -55,3 +55,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: gh release create "$TAG" dist/* --prerelease --title "Auto LUT $TAG (Preview)" --notes-file docs/RELEASE_NOTES.md
+      - name: Update fixed plugin catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: python3 scripts/update_catalog.py

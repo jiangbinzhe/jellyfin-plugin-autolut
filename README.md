@@ -23,10 +23,10 @@
 0.1.3 可在 Jellyfin 管理面板 → 插件 → 仓库中添加：
 
 ```text
-https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.3/manifest.json
+https://raw.githubusercontent.com/jiangbinzhe/jellyfin-plugin-autolut/main/manifest.json
 ```
 
-刷新插件目录，安装 **Auto LUT (Preview)**，然后重启 Jellyfin。该地址固定到此次预发布，便于手动选择升级；不是自动跟随最新版本的稳定仓库。
+刷新插件目录，安装 **Auto LUT (Preview)**，然后重启 Jellyfin。这是固定的预览更新源，以后发布成功后自动更新清单，无需更换地址。安装包仍绑定具体版本和校验和。Jellyfin 检查插件更新后可发现新版本，安装更新后需重启；是否自动安装取决于服务器更新设置。原来固定在 v0.1.2/v0.1.3 的仓库地址不会跟随更新，请替换为此地址。
 
 填写测试用户 ID，然后勾选媒体库或填写单个媒体 ID。选择媒体库时，单个媒体 ID 可留空。用户 ID 是 Jellyfin 内部 ID，不是登录用户名。固定 LUT 路径使用容器内绝对路径。
 
