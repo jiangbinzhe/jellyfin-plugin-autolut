@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html><head><title>Auto LUT</title></head><body>
+<div id="AutoLutPage" data-role="page" class="page type-interior pluginConfigurationPage">
+<div data-role="content"><div class="content-primary"><form id="AutoLutForm">
+<h2>Auto LUT · 0.1.1 预览版</h2>
+<p>仅 Jellyfin 12.1 / Linux x64。SDR BT.709、8-bit、最高 1080p；CPU LUT + QSV 编码。每次播放固定一个 LUT。</p>
+<label class="checkboxContainer"><input id="Enabled" type="checkbox" is="emby-checkbox"><span>启用（必须同时填写用户和媒体白名单）</span></label>
+<div class="inputContainer"><label class="inputLabel" for="UserIds">用户 ID（逗号分隔）</label><input is="emby-input" id="UserIds"></div>
+<div class="inputContainer"><label class="inputLabel" for="ItemIds">媒体 ID（逗号分隔）</label><input is="emby-input" id="ItemIds"></div>
+<div class="inputContainer"><label class="inputLabel" for="DeviceIds">设备 ID（可留空；填写后进一步限制）</label><input is="emby-input" id="DeviceIds"></div>
+<div class="selectContainer"><label class="selectLabel" for="Mode">分析方式</label><select is="emby-select" id="Mode"><option value="Automatic">自动：中央区域肤色分析</option><option value="Fixed">固定：读取 .cube 文件</option></select></div>
+<div class="inputContainer"><label class="inputLabel" for="FixedCubePath">固定 LUT 的容器内绝对路径</label><input is="emby-input" id="FixedCubePath"></div>
+<p>无可用肤色、HDR、10-bit、多版本媒体、选中字幕等会跳过。自动分析尚不含人脸检测。预览版每次服务启动最多创建 8 个调色会话，达到上限后使用普通播放；重启后恢复额度。</p>
+<button is="emby-button" type="submit" class="raised button-submit block"><span>保存</span></button>
+</form></div></div></div>
+<script>
+(function () {
+ const id = '70a81c22-b61d-4bdd-bd86-2048e0b29a5a';
+ const page = document.querySelector('#AutoLutPage');
+ const fields = ['UserIds', 'ItemIds', 'DeviceIds', 'Mode', 'FixedCubePath'];
+ page.addEventListener('pageshow', async function () {
+   Dashboard.showLoadingMsg();
+   try { const c = await ApiClient.getPluginConfiguration(id); page.querySelector('#Enabled').checked = c.Enabled; fields.forEach(k => page.querySelector('#' + k).value = c[k] || ''); }
+   finally { Dashboard.hideLoadingMsg(); }
+ });
+ page.querySelector('form').addEventListener('submit', async function (e) {
+   e.preventDefault(); Dashboard.showLoadingMsg();
+   try { const c = await ApiClient.getPluginConfiguration(id); c.Enabled = page.querySelector('#Enabled').checked; fields.forEach(k => c[k] = page.querySelector('#' + k).value.trim()); const result = await ApiClient.updatePluginConfiguration(id, c); Dashboard.processPluginConfigurationUpdateResult(result); }
+   finally { Dashboard.hideLoadingMsg(); }
+ });
+})();
+</script></body></html>

@@ -1,0 +1,24 @@
+{
+  "source": "User-provided browser LUT userscript v6.7.5",
+  "sha256": "70f1fe5bdbf312acf0bf458da68957b2636d8f47c6d49646f1ef955eee54f7d2",
+  "version": "6.7.5",
+  "ranges": {
+    "config": [
+      48,
+      137
+    ],
+    "color_math_and_solver": [
+      145,
+      1404
+    ],
+    "sampling_helpers": [
+      1634,
+      1711
+    ],
+    "sampling_body": [
+      1771,
+      1862
+    ]
+  },
+  "changes": "Removed browser capture and face inference; sampleRgba takes RGBA bytes and an optional face bounding box."
+}

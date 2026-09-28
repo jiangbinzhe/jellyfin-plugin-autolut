@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+.build/
+dist/
+*.user
+*.log
+__pycache__/
+.vs/
+.idea/
+.env
+.env.*
+*.key
+*.pem
+test-credentials.json

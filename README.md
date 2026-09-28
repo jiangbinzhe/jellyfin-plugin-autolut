@@ -1,0 +1,84 @@
+# Jellyfin Auto LUT — Preview
+
+为选定用户、设备和媒体自动生成调色 LUT，并接入 Jellyfin 的服务端转码流程。当前版本是 **0.1.1 预发布版**，默认关闭。
+
+> 当前范围：Jellyfin 12.1、Linux x64、SDR BT.709、8-bit、最大 1080p；CPU LUT + QSV 编码。最终插件在实际 NAS 上的 QSV/HLS 实播尚待验收，不适合直接全库启用。
+
+## 功能
+
+- 用户和媒体白名单必须同时匹配，设备白名单可进一步限制。
+- 自动模式抽取播放起点的一帧，最长边缩放到 640，分析中央区域肤色并生成 33³ LUT；也支持固定 `.cube` 文件。
+- 无可用肤色或准备失败时保留普通播放。
+- 生成成功后通过 PlaybackInfo 强制视频转码；每次播放会话冻结 LUT，避免不同用户或不同调色结果串用缓存。
+- 随包附带 Node 运行时，无需在容器中另外安装 Node 或启动 sidecar。
+
+## 安装
+
+发布后，在 Jellyfin 管理面板 → 插件 → 仓库中添加：
+
+```text
+https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.1/manifest.json
+```
+
+刷新插件目录，安装 **Auto LUT (Preview)**，然后重启 Jellyfin。该地址固定到此次预发布，便于手动选择升级；不是自动跟随最新版本的稳定仓库。
+
+在插件设置页填写一个测试用户 ID 和一部测试媒体 ID，保存并启用。ID 是 Jellyfin 的 ID，不是显示名称。固定 LUT 路径使用容器内绝对路径。
+
+先选一部无字幕的 720p/1080p SDR 测试视频。自动模式在黑色片头或没有肤色时会跳过，可从有人物的时间点开始播放。
+
+## 处理链和限制
+
+```text
+VAAPI 硬解 → VAAPI 缩放 → 下载帧 → RGB 浮点 CPU lut3d
+           → NV12 → 上传 QSV → H.264 QSV 硬编
+```
+
+| 项目 | 当前行为 |
+|---|---|
+| HDR10 / HLG / Dolby Vision / 10-bit / 4K | 跳过 |
+| 未明确标记 BT.709 色彩信息 | 跳过 |
+| 直播、网络输入、多媒体源、多视频流、隔行、旋转视频 | 跳过 |
+| 选中的字幕、复杂滤镜图 | 跳过或保持原转码命令 |
+| 客户端 | 需要使用带 DeviceProfile 的 POST PlaybackInfo；静态 URL/下载不被强制处理 |
+| 自动分析 | 中央 50% 区域肤色分析；尚无 MediaPipe 人脸检测 |
+| LUT 更新 | 每次播放生成一次，尚无播放中周期更新 |
+| 成功会话额度 | 每次服务启动最多 8 个；达到额度后普通播放。初版不自动淘汰会话，以保留 seek 所需 LUT |
+| 数据保留 | 抽帧原始数据用后删除；LUT 保存在 `/cache/autolut`，旧运行目录需在无相关播放时清理 |
+
+当前 GPU/Vulkan 映射测试出现过绿屏和 10-bit 损坏，因此此版本没有全 GPU LUT 选项。关闭插件只影响新请求；已有会话保持冻结 LUT，结束后重新播放即可恢复。FFmpeg 实际编码失败时不自动重试，请关闭插件重新播放并检查日志。
+
+## 验证状态
+
+- 原 0.1.0：WSL .NET 10 编译、46 项策略/会话/真实抽帧与 Node 联动检查通过。
+- 独立官方 Jellyfin 12.1：插件加载、配置页面和实际 PlaybackInfo 白名单/强制转码流程通过。
+- 0.1.1：47 项检查通过；通过 Jellyfin 正式仓库安装后端完成下载校验、安装、重启加载及自动分析验证，详见 [验证记录](docs/VALIDATION.md)。
+- 本地 WSL 缺少目标 Intel VAAPI/QSV 设备，不能代替 NAS 上的实际播放、持续负载和多用户验收。
+
+## 编译与打包
+
+需要 .NET SDK 10.0.401、Python 3 和 Linux x64 环境。
+
+```sh
+bash scripts/build.sh
+python3 scripts/package.py --repository jiangbinzhe/jellyfin-plugin-autolut
+```
+
+打包器下载并核验固定版本 Node 22.23.3；输出位于 `dist/`：插件 ZIP、SHA256 文件和 `manifest.json`。ZIP 中 DLL 位于根目录，Jellyfin 自行创建版本目录。清单里的 MD5 用于兼容 Jellyfin 12.1 的安装校验，同时提供 SHA256 供独立验证。
+
+GitHub Actions 对提交和 PR 执行编译与检查；推送匹配版本号的 tag 后创建预发布 Release。Actions 不改 Jellyfin 部署。
+
+## 验收与回退
+
+1. 未匹配白名单的播放保持原行为。
+2. 选定 SDR 视频应先出现 `AutoLut prepared`，实际转码时出现 `AutoLut applied cpu-lut-qsv`；只有 prepared 不表示 LUT 已应用。
+3. 检查画面、音画同步和 seek，确认 FFmpeg 同时使用 `lut3d`、`h264_qsv`。
+4. 连续播放至少 10 分钟，建议稳定速度不低于 1.3×，无持续掉帧或编码错误。
+5. 出现问题先关闭插件并重新开始播放；彻底移除可通过 Jellyfin 插件管理卸载后重启。
+
+## LUT 与 Jellyfin 的关系
+
+FFmpeg 的 `lut3d` 和 `libplacebo` 已能读取自定义 `.cube`；本项目解决分析、启用策略和播放器转码接入。某些 tone-mapping PR 中提到的 LUT 是算法内部查找表，并不等同于用户导入 3D 调色 LUT。详见 [技术说明](docs/LUT_SUPPORT.md)。
+
+## 源码与许可
+
+`src/` 是 Jellyfin 集成层，`worker/` 是从项目提供的 v6.7.5 浏览器脚本提取的纯计算核心；来源校验值记录在 `worker/provenance.json`，没有附带本地文件路径。仓库当前未指定项目开源许可证。附带 Node 的许可证和第三方声明包含在安装包内，见 [第三方说明](THIRD_PARTY_NOTICES.md)。
