@@ -4,13 +4,22 @@ import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../src/WebPlayer.js', import.meta.url), 'utf8');
 const settle = async () => { for (let n = 0; n < 5; n++) await new Promise(setImmediate); };
-function harness() {
+function harness({ cachedFirst = false } = {}) {
     const h = { state: { sessionId: 'session-a', itemId: 'item-a', enabled: true, canToggle: true, isPaused: false }, posts: [], timers: [], intervals: [], fail: false };
     const events = {};
     const element = () => ({ style: {}, hidden: false, isConnected: true, attrs: {},
         setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(k, v) { this[k] = v; }, appendChild() {}, remove() { this.isConnected = false; } });
     const video = { paused: false }; h.video = video;
-    const parent = {}; const anchor = { parentNode: parent, before(b) { b.parentNode = parent; h.button = b; } };
+    function page(hidden, position) {
+        const parent = {};
+        const anchor = { parentNode: parent, before(b) { b.parentNode = parent; h.button = b; } };
+        const p = { hidden: false, inactive: hidden, parent, anchor, position,
+            classList: { contains: name => name === 'hide' && p.inactive },
+            querySelector: selector => selector === '.btnVideoOsdSettings' ? anchor : selector === '.osdPositionText' ? { textContent: p.position } : null };
+        return p;
+    }
+    h.current = page(false, '1:23'); h.cached = page(true, '0:09');
+    h.pages = cachedFirst ? [h.cached, h.current] : [h.current];
     const script = { src: 'http://localhost:18096/jellyfin/AutoLut/Web/script.js?v=0.1.3' };
     const api = { getCurrentUserId: () => 'test-user', getUrl: path => 'http://localhost:18096/jellyfin/' + path,
         ajax: async req => {
@@ -20,12 +29,14 @@ function harness() {
         } };
     const document = { hidden: false, body: element(), fullscreenElement: null,
         getElementById: id => id === 'autolut-web-script' ? script : null,
-        querySelector: selector => selector.includes('btnVideoOsdSettings') ? anchor : selector === 'video' ? video : selector.includes('osdPositionText') ? { textContent: '1:23' } : null,
+        querySelector: selector => selector.includes('btnVideoOsdSettings') ? h.pages[0].anchor : selector === 'video' ? video : selector.includes('osdPositionText') ? { textContent: h.pages[0].position } : null,
+        querySelectorAll: selector => selector === '#videoOsdPage' ? h.pages : [],
         createElement: element, addEventListener: (name, fn) => { events[name] = fn; } };
     const location = { href: 'http://localhost:18096/jellyfin/web/index.html', hash: '#/video' };
     h.leave = () => { location.hash = '#/home'; events.hashchange(); };
     const context = vm.createContext({ window: { ApiClient: api, addEventListener: (name, fn) => { events[name] = fn; } }, document, location,
-        URL, MutationObserver: class { observe() {} }, setInterval: fn => { h.intervals.push(fn); },
+        URL, getComputedStyle: p => ({ display: p.inactive ? 'none' : 'block' }),
+        MutationObserver: class { constructor(fn) { h.mutate = fn; } observe(target, options) { h.observerOptions = options; } }, setInterval: fn => { h.intervals.push(fn); },
         setTimeout: fn => { h.timers.push(fn); return h.timers.length; }, clearTimeout() {} });
     vm.runInContext(source, context);
     h.refresh = async () => { await h.intervals[0](); await settle(); };
@@ -62,4 +73,30 @@ test('leaving the player cancels a pending paused choice', async () => {
     const h = harness(); h.video.paused = true; h.state.isPaused = true; await settle(); await h.refresh();
     await h.click(); h.leave(); await h.resume();
     assert.equal(h.posts.length, 0); assert.equal(h.button.textContent, 'LUT：开');
+});
+
+test('cached hidden player is skipped for both button placement and replay position', async () => {
+    const h = harness({ cachedFirst: true }); await settle();
+    assert.equal(h.button.parentNode, h.current.parent);
+    await h.click(); assert.equal(h.posts[0].positionTicks, 830000000);
+});
+
+test('class-only player activation moves the button and uses the new timeline', async () => {
+    const h = harness({ cachedFirst: true }); await settle();
+    const oldButton = h.button;
+    h.current.inactive = true; h.cached.inactive = false;
+    assert.equal(h.observerOptions.attributes, true);
+    assert.ok(h.observerOptions.attributeFilter.includes('class'));
+    h.mutate(); await settle();
+    assert.equal(oldButton.isConnected, false);
+    assert.equal(h.button.parentNode, h.cached.parent);
+    assert.equal(h.button.hidden, false);
+    await h.click(); assert.equal(h.posts[0].positionTicks, 90000000);
+});
+
+test('periodic repair restores a detached button without duplicate controls', async () => {
+    const h = harness(); await settle();
+    const removed = h.button; removed.remove(); await h.refresh();
+    assert.notEqual(h.button, removed); assert.equal(h.button.hidden, false);
+    const repaired = h.button; await h.refresh(); assert.equal(h.button, repaired);
 });

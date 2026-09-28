@@ -23,7 +23,7 @@ Check(!Policy.Selected(config, user, "tv", item), "disabled policy");
 const string cube = "/cache/autolut/test/lut.cube";
 const string command = "-init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -filter_hw_device qs -hwaccel vaapi -hwaccel_output_format vaapi -i \"/media/file with spaces.mkv\" -codec:v:0 h264_qsv -vf \"scale_vaapi=w=1280:h=720:format=nv12:extra_hw_frames=24,hwmap=derive_device=qsv,format=qsv\" -codec:a copy -f hls \"/cache/transcodes/session.m3u8\"";
 Check(CommandPatch.TryApply(command, cube, out var patched, out _), "known VAAPI to QSV command");
-Check(patched.Contains("hwdownload,format=nv12,format=gbrpf32le,lut3d=file=" + cube), "LUT inserted in RGB domain");
+Check(patched.Contains("hwdownload,format=nv12,format=gbrpf32le,lut3d=file=" + cube + ":interp=tetrahedral,format=nv12"), "tetrahedral LUT inserted with float RGB precision");
 Check(patched.Contains("hwupload=extra_hw_frames=24,format=qsv"), "QSV upload restored");
 Check(patched.EndsWith("-codec:a copy -f hls \"/cache/transcodes/session.m3u8\""), "audio and cache path unchanged");
 Check(!CommandPatch.TryApply(patched, cube, out _, out _), "cannot double apply");
@@ -78,6 +78,29 @@ try
     var ffmpeg = Environment.GetEnvironmentVariable("AUTOLUT_TEST_FFMPEG");
     if (!string.IsNullOrEmpty(ffmpeg))
     {
+        // Execute the CPU portion of the actual patched graph without requiring a GPU.
+        // Identity LUT must preserve the same conversion-only reference and frame count.
+        var cpuGraph = patched.Split("hwdownload,")[1].Split(",hwupload=")[0];
+        var referenceGraph = System.Text.RegularExpressions.Regex.Replace(cpuGraph, @"lut3d=[^,]+,", "");
+        cpuGraph = cpuGraph.Replace(cube, plan!.CubePath);
+        async Task<byte[]> FilterFrames(string graph)
+        {
+            var info = new System.Diagnostics.ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true };
+            foreach (var arg in new[] { "-nostdin", "-v", "error", "-filter_threads", "2", "-f", "lavfi", "-i", "testsrc2=s=64x36:r=3", "-frames:v", "3", "-vf", graph, "-c:v", "rawvideo", "-threads:v", "1", "-f", "rawvideo", "pipe:1" }) info.ArgumentList.Add(arg);
+            using var process = System.Diagnostics.Process.Start(info)!;
+            using var output = new MemoryStream();
+            var error = process.StandardError.ReadToEndAsync();
+            await process.StandardOutput.BaseStream.CopyToAsync(output);
+            await process.WaitForExitAsync();
+            if (process.ExitCode != 0) throw new Exception("LUT filter failed: " + await error);
+            await error;
+            return output.ToArray();
+        }
+        var referencePixels = await FilterFrames(referenceGraph);
+        var lutPixels = await FilterFrames(cpuGraph);
+        Check(referencePixels.Length == 64 * 36 * 3 / 2 * 3 && lutPixels.Length == referencePixels.Length, "patched tetrahedral CPU graph emits all NV12 frames");
+        Check(referencePixels.Max() - referencePixels.Min() > 100, "LUT reference contains non-flat pixels");
+        Check(lutPixels.Zip(referencePixels, (a, b) => Math.Abs(a - b)).Max() <= 1, "identity tetrahedral LUT preserves conversion reference within one code value");
         async Task Generate(string color)
         {
             var info = new System.Diagnostics.ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true };

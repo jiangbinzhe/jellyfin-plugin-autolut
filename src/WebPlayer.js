@@ -70,10 +70,15 @@
         pending = null;
         await apply(enabled);
     }
+    function activePage() {
+        // Jellyfin can cache multiple player pages with the same id after replay.
+        return Array.from(document.querySelectorAll('#videoOsdPage')).find(page =>
+            !page.hidden && !page.classList.contains('hide') && getComputedStyle(page).display !== 'none');
+    }
     async function apply(enabled) {
         busy = true; render();
         try {
-            const displayed = document.querySelector('#videoOsdPage .osdPositionText')?.textContent?.trim() || '';
+            const displayed = activePage()?.querySelector('.osdPositionText')?.textContent?.trim() || '';
             const parts = displayed.split(':');
             const seconds = parts.length >= 2 && parts.length <= 3 && parts.every(p => /^\d+$/.test(p))
                 ? parts.reduce((sum, value) => sum * 60 + Number(value), 0) : null;
@@ -88,22 +93,22 @@
         }
     }
     function mount() {
-        const anchor = document.querySelector('#videoOsdPage .btnVideoOsdSettings');
+        const anchor = activePage()?.querySelector('.btnVideoOsdSettings');
         if (!anchor || !document.querySelector('video')) return;
         if (button?.isConnected && button.parentNode === anchor.parentNode) return;
         button?.remove();
         button = document.createElement('button'); button.type = 'button'; button.id = 'autolut-web-toggle';
-        button.className = 'autoSize'; button.hidden = true;
+        button.className = 'autoSize'; button.hidden = false;
         Object.assign(button.style, { border: '0', background: 'transparent', padding: '10px', font: 'inherit', whiteSpace: 'nowrap', cursor: 'pointer' });
         button.addEventListener('click', toggle);
-        anchor.before(button); refresh();
+        anchor.before(button); render(); refresh();
     }
     const observer = new MutationObserver(mount);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
     document.addEventListener('playing', () => { if (pending) setTimeout(refresh, 200); }, true);
     window.addEventListener('hashchange', () => {
         if (!location.hash.startsWith('#/video')) { pending = null; render(); }
     });
     document.addEventListener('ended', () => { pending = null; render(); }, true);
-    mount(); setInterval(refresh, 2000);
+    mount(); setInterval(() => { mount(); return refresh(); }, 2000);
 })();

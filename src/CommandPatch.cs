@@ -34,7 +34,8 @@ public static partial class CommandPatch
         if (!device.Success) return false;
         var alias = device.Groups["device"].Value;
         if (!Regex.IsMatch(command, @"(?:^|\s)-init_hw_device\s+qsv=" + Regex.Escape(alias) + @"(?:@|:|\s)")) return false;
-        var lut = $"hwdownload,format=nv12,format=gbrpf32le,lut3d=file={cube}:interp=trilinear,format=nv12,hwupload=extra_hw_frames=24,format=qsv";
+        // Keep float RGB precision; tetrahedral has optimized x86 SIMD paths in jellyfin-ffmpeg.
+        var lut = $"hwdownload,format=nv12,format=gbrpf32le,lut3d=file={cube}:interp=tetrahedral,format=nv12,hwupload=extra_hw_frames=24,format=qsv";
         changed = command[..graph.Index] + prefix + lut + command[(graph.Index + graph.Length)..];
         reason = "cpu-lut-qsv";
         return true;
