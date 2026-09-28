@@ -12,7 +12,7 @@ public sealed class LutTranscodeManager(ITranscodeManager inner, LutService luts
         if (plan != null && plan.UserId == userId && plan.DeviceId == state.Request.DeviceId && plan.ItemId == state.Request.Id
             && plan.MediaPath == state.MediaPath && File.Exists(plan.CubePath))
         {
-            if (CommandPatch.TryApply(commandLineArguments, plan.CubePath, out var changed, out var reason))
+            if (CommandPatch.TryApply(commandLineArguments, plan.CubePath, out var changed, out var reason, plan.AssumeBt709))
             {
                 commandLineArguments = changed;
                 logger.LogInformation("AutoLut applied {Mode} to session {Session}", reason, state.Request.PlaySessionId);

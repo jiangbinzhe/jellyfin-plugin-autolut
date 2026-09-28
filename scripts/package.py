@@ -65,7 +65,7 @@ def main():
         'description': 'Experimental SDR automatic LUT. Linux x64, Jellyfin 12.1, CPU LUT with QSV encoding. Disabled by default.',
         'overview': 'Session-scoped automatic or fixed LUT for explicitly selected users and media.',
         'owner': args.repository.split('/')[0] if args.repository else 'Local preview', 'category': 'General',
-        'versions': [{'version': assembly_version, 'changelog': 'Fix web-player LUT controls in Jellyfin Mobile: match the authenticated client session and honor device-scoped opt-out. Show recoverable state-query errors. Reload the app web view after updating; iOS playback acceptance is pending.',
+        'versions': [{'version': assembly_version, 'changelog': 'Add two independent opt-in modes: assume missing color tags are BT.709 for 8-bit video, and allow SDR input up to 3840x2160. Defaults remain off; HDR/Dolby Vision/10-bit and larger inputs stay excluded. NAS 4K real-time performance is not yet validated.',
             'targetAbi': '12.1.0.0', 'sourceUrl': base_url.rstrip('/') + '/' + output.name, 'checksum': md5,
             'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()}]}]
     (dist / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')

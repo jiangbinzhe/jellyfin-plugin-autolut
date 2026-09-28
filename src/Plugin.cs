@@ -19,6 +19,8 @@ public sealed class Plugin : BasePlugin<Configuration>, IHasWebPages
 public sealed class Configuration : BasePluginConfiguration
 {
     public bool Enabled { get; set; }
+    public bool Allow4kSdr { get; set; }
+    public bool AssumeUnspecifiedBt709 { get; set; }
     public bool WebPlayerButton { get; set; } = true;
     public string UserIds { get; set; } = "";
     public string DeviceIds { get; set; } = "";

@@ -57,6 +57,7 @@ try
     stream.ColorTransfer = null; Check(!Policy.Eligible(source, config, out _), "unknown transfer excluded"); stream.ColorTransfer = "bt709";
     stream.Width = 3840; Check(!Policy.Eligible(source, config, out _), "4K excluded from CPU preview"); stream.Width = 1280;
     stream.IsInterlaced = true; Check(!Policy.Eligible(source, config, out _), "interlaced excluded"); stream.IsInterlaced = false;
+    ColorCompatibilityTests.PolicyChecks(Check, source, stream);
     var input = Path.Combine(temporary, "input.cube"); File.WriteAllText(input, identity);
     config.Mode = "Fixed"; config.FixedCubePath = input; config.CacheDirectory = temporary + "/cache"; config.MaxSessions = 1;
     using var service = new LutService(NullLogger<LutService>.Instance);
@@ -78,6 +79,7 @@ try
     var ffmpeg = Environment.GetEnvironmentVariable("AUTOLUT_TEST_FFMPEG");
     if (!string.IsNullOrEmpty(ffmpeg))
     {
+        await ColorCompatibilityTests.PixelChecks(Check, ffmpeg, temporary, command, plan!.CubePath);
         // Execute the CPU portion of the actual patched graph without requiring a GPU.
         // Identity LUT must preserve the same conversion-only reference and frame count.
         var cpuGraph = patched.Split("hwdownload,")[1].Split(",hwupload=")[0];

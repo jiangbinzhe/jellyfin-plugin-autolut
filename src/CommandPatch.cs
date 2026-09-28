@@ -4,6 +4,7 @@ namespace Jellyfin.Plugin.AutoLut;
 
 public static partial class CommandPatch
 {
+    public const string Bt709Parameters = "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709";
     [GeneratedRegex("(?:^|\\s)-vf\\s+\"(?<graph>[^\"]+)\"")]
     private static partial Regex Vf();
     [GeneratedRegex(@"^/[A-Za-z0-9_./-]+\.cube$")]
@@ -11,7 +12,7 @@ public static partial class CommandPatch
     [GeneratedRegex(@"(?:^|\s)-filter_hw_device\s+(?<device>[A-Za-z0-9_]+)(?:\s|$)")]
     private static partial Regex FilterDevice();
 
-    public static bool TryApply(string command, string cube, out string changed, out string reason)
+    public static bool TryApply(string command, string cube, out string changed, out string reason, bool assumeBt709 = false)
     {
         changed = command; reason = "unsupported-command";
         if (!SafePath().IsMatch(cube) || cube.Contains("..", StringComparison.Ordinal)) return false;
@@ -36,8 +37,15 @@ public static partial class CommandPatch
         if (!Regex.IsMatch(command, @"(?:^|\s)-init_hw_device\s+qsv=" + Regex.Escape(alias) + @"(?:@|:|\s)")) return false;
         // Keep float RGB precision; tetrahedral has optimized x86 SIMD paths in jellyfin-ffmpeg.
         var lut = $"hwdownload,format=nv12,format=gbrpf32le,lut3d=file={cube}:interp=tetrahedral,format=nv12,hwupload=extra_hw_frames=24,format=qsv";
+        if (assumeBt709)
+        {
+            // Normalize frame metadata before any VAAPI scaling, then explicitly select
+            // the same matrix for CPU YUV/RGB conversions as for the analysis frame.
+            prefix = Bt709Parameters + "," + prefix;
+            lut = $"hwdownload,format=nv12,{Bt709Parameters},scale=in_color_matrix=bt709,format=gbrpf32le,lut3d=file={cube}:interp=tetrahedral,scale=out_color_matrix=bt709,format=nv12,{Bt709Parameters},hwupload=extra_hw_frames=24,format=qsv";
+        }
         changed = command[..graph.Index] + prefix + lut + command[(graph.Index + graph.Length)..];
-        reason = "cpu-lut-qsv";
+        reason = assumeBt709 ? "cpu-lut-qsv-assumed-bt709" : "cpu-lut-qsv";
         return true;
     }
 }

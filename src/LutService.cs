@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AutoLut;
 
-public sealed record SessionPlan(Guid UserId, string DeviceId, Guid ItemId, string MediaPath, string CubePath);
+public sealed record SessionPlan(Guid UserId, string DeviceId, Guid ItemId, string MediaPath, string CubePath, bool AssumeBt709 = false);
 
 public sealed class LutService(ILogger<LutService> logger) : IDisposable
 {
@@ -37,6 +37,7 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
     {
         // ASCII path prevents FFmpeg filter parser escapes and shell metacharacters.
         if (!System.Text.RegularExpressions.Regex.IsMatch(c.CacheDirectory, @"^/[A-Za-z0-9_/-]+$") || c.CacheDirectory.Contains("..")) return null;
+        var assumeBt709 = Policy.NeedsBt709Assumption(video, c);
         var dir = Path.Combine(c.CacheDirectory, _runId, Guid.NewGuid().ToString("N"));
         await _analysis.WaitAsync(ct).ConfigureAwait(false);
         bool ready = false;
@@ -59,7 +60,7 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
                 var raw = Path.Combine(dir, "frame.rgba");
                 var time = (Math.Max(0, ticks) / (double)TimeSpan.TicksPerSecond).ToString("0.###", CultureInfo.InvariantCulture);
                 await Run(c.FfmpegPath, ["-nostdin", "-v", "error", "-threads", "1", "-filter_threads", "1", "-noautorotate", "-ss", time,
-                    "-i", media, "-map", "0:v:0", "-frames:v", "1", "-an", "-sn", "-vf", $"scale={w}:{h}", "-pix_fmt", "rgba", "-f", "rawvideo", "-n", raw], c, ct).ConfigureAwait(false);
+                    "-i", media, "-map", "0:v:0", "-frames:v", "1", "-an", "-sn", "-vf", AnalysisFilter(w, h, assumeBt709), "-pix_fmt", "rgba", "-f", "rawvideo", "-n", raw], c, ct).ConfigureAwait(false);
                 if (new FileInfo(raw).Length != w * h * 4) throw new InvalidDataException("Unexpected frame dimensions");
                 var request = Path.Combine(dir, "frame.json");
                 await File.WriteAllTextAsync(request, JsonSerializer.Serialize(new { rgba = "frame.rgba", width = w, height = h }), ct).ConfigureAwait(false);
@@ -71,8 +72,9 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
                 if (!File.Exists(cube)) { logger.LogInformation("AutoLut skipped: no usable skin sample for item {Item}", item); return null; }
             }
             else return null;
-            var plan = new SessionPlan(user, device, item, media, cube);
+            var plan = new SessionPlan(user, device, item, media, cube, assumeBt709);
             ready = true;
+            if (assumeBt709) logger.LogInformation("AutoLut assumes missing color tags are BT.709 for item {Item}; source unchanged", item);
             logger.LogInformation("AutoLut prepared {Mode} LUT for item {Item}; scope is one playback session", c.Mode, item);
             return plan;
         }
@@ -84,6 +86,10 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
             if (!ready) DeletePlan(new SessionPlan(user, device, item, media, Path.Combine(dir, "lut.cube")));
         }
     }
+
+    public static string AnalysisFilter(int width, int height, bool assumeBt709) => assumeBt709
+        ? $"{CommandPatch.Bt709Parameters},scale={width}:{height}:in_color_matrix=bt709"
+        : $"scale={width}:{height}";
 
     public static void ValidateCube(string text)
     {

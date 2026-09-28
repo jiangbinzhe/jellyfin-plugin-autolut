@@ -26,15 +26,28 @@ public static class Policy
         video = source.MediaStreams.SingleOrDefaultSafe(s => s.Type == MediaStreamType.Video);
         if (video is null || source.RequiresOpening || source.IsInfiniteStream || source.Protocol.ToString() != "File"
             || !Path.IsPathRooted(source.Path) || !File.Exists(source.Path)) return false;
-        // Unknown color metadata is intentionally not treated as SDR BT.709.
+        // Unknown color metadata requires explicit administrator opt-in. Known non-709 is never overwritten.
         return video.BitDepth == 8 && video.Width > 0 && video.Height > 0
-            && video.Width <= Math.Clamp(c.MaxWidth, 1, 1920) && video.Height <= Math.Clamp(c.MaxHeight, 1, 1080)
-            && video.ColorPrimaries == "bt709" && video.ColorTransfer == "bt709" && video.ColorSpace == "bt709"
-            && (Read(video, "VideoRangeType")?.ToString() is null or "SDR")
-            && Read(video, "DvProfile") is null
+            && video.Width <= (c.Allow4kSdr ? 3840 : Math.Clamp(c.MaxWidth, 1, 1920))
+            && video.Height <= (c.Allow4kSdr ? 2160 : Math.Clamp(c.MaxHeight, 1, 1080))
+            && ColorAccepted(video.ColorPrimaries, c) && ColorAccepted(video.ColorTransfer, c) && ColorAccepted(video.ColorSpace, c)
+            && (Read(video, "VideoRangeType")?.ToString() is null or "SDR"
+                || NeedsBt709Assumption(video, c) && Read(video, "VideoRangeType")?.ToString() == "Unknown")
+            && Read(video, "DvProfile") is null && Read(video, "DvLevel") is null
+            && Read(video, "RpuPresentFlag") is not 1 && Read(video, "ElPresentFlag") is not 1
+            && Read(video, "Hdr10PlusPresentFlag") is not true
             && (video.Rotation is null or 0)
             && !video.IsInterlaced;
     }
+    private static bool MissingColor(string? value) => string.IsNullOrWhiteSpace(value)
+        || value is "unknown" or "unspecified";
+    private static bool ColorAccepted(string? value, Configuration c) => value == "bt709"
+        || c.AssumeUnspecifiedBt709 && MissingColor(value);
+    public static bool NeedsBt709Assumption(MediaStream video, Configuration c) => c.AssumeUnspecifiedBt709
+        && video.BitDepth == 8 && ColorAccepted(video.ColorPrimaries, c)
+        && ColorAccepted(video.ColorTransfer, c) && ColorAccepted(video.ColorSpace, c)
+        && (MissingColor(video.ColorPrimaries) || MissingColor(video.ColorTransfer) || MissingColor(video.ColorSpace));
+
     private static T? SingleOrDefaultSafe<T>(this IEnumerable<T> values, Func<T, bool> match) where T : class
     {
         var selected = values.Where(match).Take(2).ToArray();
