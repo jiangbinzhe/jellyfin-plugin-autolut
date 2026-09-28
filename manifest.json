@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.5.0",
+        "changelog": "Fix web-player LUT controls in Jellyfin Mobile: match the authenticated client session and honor device-scoped opt-out. Show recoverable state-query errors. Reload the app web view after updating; iOS playback acceptance is pending.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/jiangbinzhe/jellyfin-plugin-autolut/releases/download/v0.1.5/AutoLut_0.1.5.0-linux-x64.zip",
+        "checksum": "cfd471e5463a71c245892f27f45f697f",
+        "timestamp": "2026-09-28T08:39:48.728870+00:00"
+      },
+      {
         "version": "0.1.4.0",
         "changelog": "Use tetrahedral CPU LUT interpolation with float precision; fix missing controls and stale playback positions when Jellyfin caches player pages. Refresh the web client after updating.",
         "targetAbi": "12.1.0.0",
