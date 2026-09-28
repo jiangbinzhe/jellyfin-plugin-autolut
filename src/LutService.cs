@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AutoLut;
 
-public sealed record SessionPlan(Guid UserId, string DeviceId, Guid ItemId, string MediaPath, string CubePath, bool AssumeBt709 = false);
+public sealed record SessionPlan(Guid UserId, string DeviceId, Guid ItemId, string MediaPath, string CubePath, bool AssumeBt709 = false, bool ConvertSmpte170m = false, bool Deinterlace = false);
 
 public sealed class LutService(ILogger<LutService> logger) : IDisposable
 {
@@ -38,6 +38,8 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
         // ASCII path prevents FFmpeg filter parser escapes and shell metacharacters.
         if (!System.Text.RegularExpressions.Regex.IsMatch(c.CacheDirectory, @"^/[A-Za-z0-9_/-]+$") || c.CacheDirectory.Contains("..")) return null;
         var assumeBt709 = Policy.NeedsBt709Assumption(video, c);
+        var convertSmpte170m = c.EnableLegacySdr && Policy.IsSmpte170m(video);
+        var deinterlace = c.EnableLegacySdr && video.IsInterlaced;
         var dir = Path.Combine(c.CacheDirectory, _runId, Guid.NewGuid().ToString("N"));
         await _analysis.WaitAsync(ct).ConfigureAwait(false);
         bool ready = false;
@@ -60,7 +62,7 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
                 var raw = Path.Combine(dir, "frame.rgba");
                 var time = (Math.Max(0, ticks) / (double)TimeSpan.TicksPerSecond).ToString("0.###", CultureInfo.InvariantCulture);
                 await Run(c.FfmpegPath, ["-nostdin", "-v", "error", "-threads", "1", "-filter_threads", "1", "-noautorotate", "-ss", time,
-                    "-i", media, "-map", "0:v:0", "-frames:v", "1", "-an", "-sn", "-vf", AnalysisFilter(w, h, assumeBt709), "-pix_fmt", "rgba", "-f", "rawvideo", "-n", raw], c, ct).ConfigureAwait(false);
+                    "-i", media, "-map", "0:v:0", "-frames:v", "1", "-an", "-sn", "-vf", AnalysisFilter(w, h, assumeBt709, convertSmpte170m, deinterlace), "-pix_fmt", "rgba", "-f", "rawvideo", "-n", raw], c, ct).ConfigureAwait(false);
                 if (new FileInfo(raw).Length != w * h * 4) throw new InvalidDataException("Unexpected frame dimensions");
                 var request = Path.Combine(dir, "frame.json");
                 await File.WriteAllTextAsync(request, JsonSerializer.Serialize(new { rgba = "frame.rgba", width = w, height = h }), ct).ConfigureAwait(false);
@@ -72,8 +74,9 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
                 if (!File.Exists(cube)) { logger.LogInformation("AutoLut skipped: no usable skin sample for item {Item}", item); return null; }
             }
             else return null;
-            var plan = new SessionPlan(user, device, item, media, cube, assumeBt709);
+            var plan = new SessionPlan(user, device, item, media, cube, assumeBt709, convertSmpte170m, deinterlace);
             ready = true;
+            if (convertSmpte170m || deinterlace) logger.LogInformation("AutoLut normalized SDR plan: SMPTE170M={Convert}, deinterlace={Deinterlace}", convertSmpte170m, deinterlace);
             if (assumeBt709) logger.LogInformation("AutoLut assumes missing color tags are BT.709 for item {Item}; source unchanged", item);
             logger.LogInformation("AutoLut prepared {Mode} LUT for item {Item}; scope is one playback session", c.Mode, item);
             return plan;
@@ -87,9 +90,13 @@ public sealed class LutService(ILogger<LutService> logger) : IDisposable
         }
     }
 
-    public static string AnalysisFilter(int width, int height, bool assumeBt709) => assumeBt709
-        ? $"{CommandPatch.Bt709Parameters},scale={width}:{height}:in_color_matrix=bt709"
-        : $"scale={width}:{height}";
+    public static string AnalysisFilter(int width, int height, bool assumeBt709, bool convertSmpte170m = false, bool deinterlace = false)
+    {
+        // One CPU analysis frame; continuous playback keeps Jellyfin's VAAPI deinterlacer.
+        var prefix = deinterlace ? "bwdif=mode=send_frame:parity=auto:deint=all," : "";
+        if (convertSmpte170m) return prefix + $"{CommandPatch.Smpte170mToBt709},scale={width}:{height}:in_color_matrix=bt709";
+        return prefix + (assumeBt709 ? $"{CommandPatch.Bt709Parameters},scale={width}:{height}:in_color_matrix=bt709" : $"scale={width}:{height}");
+    }
 
     public static void ValidateCube(string text)
     {

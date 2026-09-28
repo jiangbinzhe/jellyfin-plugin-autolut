@@ -2,10 +2,12 @@
 <html><head><title>Auto LUT</title></head><body>
 <div id="AutoLutPage" data-role="page" class="page type-interior pluginConfigurationPage">
 <div data-role="content"><div class="content-primary"><form id="AutoLutForm">
-<h2>Auto LUT · 0.1.6 预发布版</h2>
-<p>仅 Jellyfin 12.1 / Linux x64。SDR BT.709、8-bit；默认最高 1080p，可选放宽到 4K UHD。CPU LUT + QSV 编码。每次播放固定一个 LUT。</p>
+<h2>Auto LUT · 0.1.7 预发布版</h2>
+<p>仅 Jellyfin 12.1 / Linux x64。8-bit SDR，默认 BT.709，可选隔行／SMPTE 170M 兼容；默认最高 1080p，可选放宽到 4K UHD。CPU LUT + QSV 编码。每次播放固定一个 LUT。</p>
 <label class="checkboxContainer"><input id="Enabled" type="checkbox" is="emby-checkbox"><span>启用（必须选择用户，以及媒体库或单个媒体）</span></label>
 <label class="checkboxContainer"><input id="WebPlayerButton" type="checkbox" is="emby-checkbox"><span>网页播放器显示 LUT 开关（保存后刷新网页）</span></label>
+<label class="checkboxContainer"><input id="EnableLegacySdr" type="checkbox" is="emby-checkbox"><span>兼容隔行／SMPTE 170M SDR 视频</span></label>
+<p>默认关闭。隔行视频复用 Jellyfin 核显去隔行；三项色彩标记均为 SMPTE 170M 时，先在 CPU 转换为 BT.709 再应用 LUT。可能增加负载；不改原文件，保存后重新播放。</p>
 <label class="checkboxContainer"><input id="Allow4kSdr" type="checkbox" is="emby-checkbox"><span>允许最高 4K UHD 的 SDR 视频（3840×2160）</span></label>
 <p>默认关闭。开启后放宽输入视频尺寸限制，超过 3840×2160 仍跳过；不会强制提升输出分辨率。4K LUT 可能增加 CPU 负载，出现卡顿可关闭此项并重新播放。HDR、Dolby Vision 和 10-bit 仍不处理。</p>
 <label class="checkboxContainer"><input id="AssumeUnspecifiedBt709" type="checkbox" is="emby-checkbox"><span>兼容缺少色彩标记的 8-bit 视频（按 BT.709 处理）</span></label>
@@ -35,6 +37,7 @@
    try {
      const c = await ApiClient.getPluginConfiguration(id);
      page.querySelector('#Enabled').checked = c.Enabled;
+     page.querySelector('#EnableLegacySdr').checked = c.EnableLegacySdr === true;
      page.querySelector('#Allow4kSdr').checked = c.Allow4kSdr === true;
      page.querySelector('#AssumeUnspecifiedBt709').checked = c.AssumeUnspecifiedBt709 === true;
      page.querySelector('#WebPlayerButton').checked = c.WebPlayerButton !== false;
@@ -73,7 +76,7 @@
  loadConfiguration();
  page.querySelector('form').addEventListener('submit', async function (e) {
    e.preventDefault(); if (!loaded || loading) return; Dashboard.showLoadingMsg();
-   try { const c = await ApiClient.getPluginConfiguration(id); c.Enabled = page.querySelector('#Enabled').checked; c.AssumeUnspecifiedBt709 = page.querySelector('#AssumeUnspecifiedBt709').checked; c.Allow4kSdr = page.querySelector('#Allow4kSdr').checked; c.WebPlayerButton = page.querySelector('#WebPlayerButton').checked; fields.forEach(k => c[k] = page.querySelector('#' + k).value.trim()); c.LibraryIds = selectedLibraries.join(','); const result = await ApiClient.updatePluginConfiguration(id, c); Dashboard.processPluginConfigurationUpdateResult(result); }
+   try { const c = await ApiClient.getPluginConfiguration(id); c.Enabled = page.querySelector('#Enabled').checked; c.AssumeUnspecifiedBt709 = page.querySelector('#AssumeUnspecifiedBt709').checked; c.Allow4kSdr = page.querySelector('#Allow4kSdr').checked; c.EnableLegacySdr = page.querySelector('#EnableLegacySdr').checked; c.WebPlayerButton = page.querySelector('#WebPlayerButton').checked; fields.forEach(k => c[k] = page.querySelector('#' + k).value.trim()); c.LibraryIds = selectedLibraries.join(','); const result = await ApiClient.updatePluginConfiguration(id, c); Dashboard.processPluginConfigurationUpdateResult(result); }
    finally { Dashboard.hideLoadingMsg(); }
  });
 })();

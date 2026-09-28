@@ -30,15 +30,18 @@ public static class Policy
         return video.BitDepth == 8 && video.Width > 0 && video.Height > 0
             && video.Width <= (c.Allow4kSdr ? 3840 : Math.Clamp(c.MaxWidth, 1, 1920))
             && video.Height <= (c.Allow4kSdr ? 2160 : Math.Clamp(c.MaxHeight, 1, 1080))
-            && ColorAccepted(video.ColorPrimaries, c) && ColorAccepted(video.ColorTransfer, c) && ColorAccepted(video.ColorSpace, c)
+            && ((ColorAccepted(video.ColorPrimaries, c) && ColorAccepted(video.ColorTransfer, c) && ColorAccepted(video.ColorSpace, c))
+                || c.EnableLegacySdr && IsSmpte170m(video) && video.Width % 2 == 0 && video.Height % 2 == 0)
             && (Read(video, "VideoRangeType")?.ToString() is null or "SDR"
                 || NeedsBt709Assumption(video, c) && Read(video, "VideoRangeType")?.ToString() == "Unknown")
             && Read(video, "DvProfile") is null && Read(video, "DvLevel") is null
             && Read(video, "RpuPresentFlag") is not 1 && Read(video, "ElPresentFlag") is not 1
             && Read(video, "Hdr10PlusPresentFlag") is not true
             && (video.Rotation is null or 0)
-            && !video.IsInterlaced;
+            && (!video.IsInterlaced || c.EnableLegacySdr);
     }
+    public static bool IsSmpte170m(MediaStream video) => video.ColorPrimaries == "smpte170m"
+        && video.ColorTransfer == "smpte170m" && video.ColorSpace == "smpte170m";
     private static bool MissingColor(string? value) => string.IsNullOrWhiteSpace(value)
         || value is "unknown" or "unspecified";
     private static bool ColorAccepted(string? value, Configuration c) => value == "bt709"

@@ -53,7 +53,7 @@ public sealed class WebInjection(RequestDelegate next, IServerConfigurationManag
                 if (insert >= 0 && !html.Contains("id=\"autolut-web-script\"", StringComparison.Ordinal))
                 {
                     // Relative URL supports a configured BaseUrl without inserting configuration into HTML.
-                    html = html.Insert(insert, "<script id=\"autolut-web-script\" src=\"../AutoLut/Web/script.js?v=0.1.6\" defer></script>");
+                    html = html.Insert(insert, "<script id=\"autolut-web-script\" src=\"../AutoLut/Web/script.js?v=0.1.7\" defer></script>");
                     bytes = Encoding.UTF8.GetBytes(html);
                     context.Response.Headers.Remove("ETag");
                     context.Response.Headers.Remove("Last-Modified");

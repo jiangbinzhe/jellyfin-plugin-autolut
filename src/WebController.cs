@@ -48,9 +48,8 @@ public sealed class WebController(ISessionManager sessions, IUserManager users, 
         if (item is null || !Policy.Selected(c, session.UserId, session.DeviceId, item.Id, library.GetCollectionFolders(item).Select(f => f.Id))) return "此媒体或所在媒体库未被管理员选中";
         var media = sources.GetStaticMediaSources(item, false, user);
         var maximum = c.Allow4kSdr ? "3840×2160（4K UHD）" : "1920×1080";
-        if (media.Count != 1 || !Policy.Eligible(media[0], c, out _)) return c.AssumeUnspecifiedBt709
-            ? $"当前仅支持单视频源、8-bit、最高 {maximum}；已标记非 BT.709、HDR、旋转或隔行视频不支持"
-            : $"当前仅支持单视频源、BT.709、8-bit、最高 {maximum}；缺少色彩标记时可由管理员启用 BT.709 兼容模式";
+        if (media.Count != 1 || !Policy.Eligible(media[0], c, out _))
+            return $"当前仅支持单视频源、8-bit SDR、最高 {maximum}；请检查色彩标记及隔行兼容选项。HDR、旋转及未支持的色彩组合会跳过";
         return null;
     }
 

@@ -31,6 +31,7 @@ foreach (var bad in new[] { command.Replace("h264_qsv", "copy"), command.Replace
     Check(!CommandPatch.TryApply(bad, cube, out var original, out _) && original == bad, "unsupported graph unchanged");
 foreach (var bad in new[] { "/cache/evil'file.cube", "/cache/../evil.cube", "/cache/evil;file.cube", "relative.cube" })
     Check(!CommandPatch.TryApply(command, bad, out _, out _), "unsafe cube path rejected");
+var legacyCpuGraph = LegacySdrTests.CommandChecks(Check, command, cube);
 const string identity = "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
 LutService.ValidateCube(identity); Check(true, "valid cube accepted");
 foreach (var bad in new[] { identity.Replace("1 1 1", "NaN 1 1"), identity.Replace("1 1 1", "2 1 1"), identity + "LUT_3D_SIZE 2", identity + "DOMAIN_MIN -1 -1 -1", "LUT_3D_SIZE 2\n0 0 0" })
@@ -58,6 +59,7 @@ try
     stream.Width = 3840; Check(!Policy.Eligible(source, config, out _), "4K excluded from CPU preview"); stream.Width = 1280;
     stream.IsInterlaced = true; Check(!Policy.Eligible(source, config, out _), "interlaced excluded"); stream.IsInterlaced = false;
     ColorCompatibilityTests.PolicyChecks(Check, source, stream);
+    LegacySdrTests.PolicyChecks(Check, media);
     var input = Path.Combine(temporary, "input.cube"); File.WriteAllText(input, identity);
     config.Mode = "Fixed"; config.FixedCubePath = input; config.CacheDirectory = temporary + "/cache"; config.MaxSessions = 1;
     using var service = new LutService(NullLogger<LutService>.Instance);
@@ -80,6 +82,7 @@ try
     if (!string.IsNullOrEmpty(ffmpeg))
     {
         await ColorCompatibilityTests.PixelChecks(Check, ffmpeg, temporary, command, plan!.CubePath);
+        await LegacySdrTests.PipelineChecks(Check, ffmpeg, temporary, legacyCpuGraph.Replace(cube, plan.CubePath), plan.CubePath);
         // Execute the CPU portion of the actual patched graph without requiring a GPU.
         // Identity LUT must preserve the same conversion-only reference and frame count.
         var cpuGraph = patched.Split("hwdownload,")[1].Split(",hwupload=")[0];

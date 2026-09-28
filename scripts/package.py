@@ -65,7 +65,7 @@ def main():
         'description': 'Experimental SDR automatic LUT. Linux x64, Jellyfin 12.1, CPU LUT with QSV encoding. Disabled by default.',
         'overview': 'Session-scoped automatic or fixed LUT for explicitly selected users and media.',
         'owner': args.repository.split('/')[0] if args.repository else 'Local preview', 'category': 'General',
-        'versions': [{'version': assembly_version, 'changelog': 'Add two independent opt-in modes: assume missing color tags are BT.709 for 8-bit video, and allow SDR input up to 3840x2160. Defaults remain off; HDR/Dolby Vision/10-bit and larger inputs stay excluded. NAS 4K real-time performance is not yet validated.',
+        'versions': [{'version': assembly_version, 'changelog': 'Add opt-in interlaced / SMPTE 170M SDR support. Preserve supported Jellyfin VAAPI deinterlacing; convert primaries, transfer and matrix to BT.709 before CPU LUT processing. Defaults remain off. HDR/10-bit remain excluded; the complete NAS hardware pipeline still needs playback validation.',
             'targetAbi': '12.1.0.0', 'sourceUrl': base_url.rstrip('/') + '/' + output.name, 'checksum': md5,
             'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()}]}]
     (dist / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
